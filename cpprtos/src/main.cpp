@@ -10,6 +10,7 @@
 #include "ssd1306_i2c.hpp"
 #include "joystick.hpp"
 #include "menu.hpp"
+#include "wifi_manager.hpp"
 
 extern "C" {
 uint32_t read_runtime_ctr(void) {
@@ -20,9 +21,14 @@ uint32_t read_runtime_ctr(void) {
 // Queue for input events (joystick directions + button)
 static QueueHandle_t g_input_queue = nullptr;
 
-static void ui_task(void*)
+struct UiTaskParams {
+    WifiManager* wifi;
+};
+
+static void ui_task(void* arg)
 {
-    // OLED: I2C1 on GP14(SDA) + GP15(SCL), address 0x3C, 400kHz
+    auto* params = static_cast<UiTaskParams*>(arg);
+
     Ssd1306I2C display(i2c1, 0x3C, /*sda=*/14, /*scl=*/15, /*baud=*/400000);
     display.init();
     display.clear();
@@ -36,14 +42,19 @@ static void ui_task(void*)
         { "About"     },
     };
 
-    Menu menu(kMainItems, sizeof(kMainItems) / sizeof(kMainItems[0]));
+    Menu menu(kMainItems, sizeof(kMainItems) / sizeof(kMainItems[0]), *params->wifi);
     menu.render(display);
 
     InputEvent ev{};
-    while (true) {
-        if (xQueueReceive(g_input_queue, &ev, portMAX_DELAY) == pdTRUE) {
+    for (;;) {
+        // Wait for input, but wake periodically to refresh Wi-Fi status screen
+        if (xQueueReceive(g_input_queue, &ev, pdMS_TO_TICKS(200)) == pdTRUE) {
             menu.handle(ev);
             menu.render(display);
+        } else {
+            if (menu.wants_periodic_refresh()) {
+                menu.render(display);
+            }
         }
     }
 }
@@ -51,35 +62,38 @@ static void ui_task(void*)
 int main()
 {
     stdio_init_all();
-
-    // Small delay so UART comes up cleanly.
     sleep_ms(50);
     printf("Boot\n");
 
     g_input_queue = xQueueCreate(/*queue_length=*/8, sizeof(InputEvent));
     configASSERT(g_input_queue);
 
-    // Joystick task reads ADC + button and posts InputEvent into g_input_queue.
     static JoystickTaskParams joy_params = {
         .queue = g_input_queue,
         .pins = {
-            .adc_x_gpio = 26, // GP26 / ADC0
-            .adc_y_gpio = 27, // GP27 / ADC1
-            .btn_gpio   = 22, // GP22 (active-low, pull-up)
+            .adc_x_gpio = 26,
+            .adc_y_gpio = 27,
+            .btn_gpio   = 22,
         },
         .tuning = {
-            .deadzone      = 2500,                 // +/- around center
-            .threshold     = 7000,                 // direction trigger
-            .invert_y      = true,                 // flip if your "up" feels inverted
-            .repeat_initial = pdMS_TO_TICKS(450),  // hold-to-repeat
+            .deadzone       = 2500,
+            .threshold      = 7000,
+            .invert_x       = true,
+            .invert_y       = true,
+            .repeat_initial = pdMS_TO_TICKS(450),
             .repeat_period  = pdMS_TO_TICKS(150),
             .debounce_ms    = 30,
         }
     };
 
+    static WifiManager wifi;
+    wifi.start();
+
+    static UiTaskParams ui_params { .wifi = &wifi };
+
     xTaskCreate(joystick_task, "joystick", 256, &joy_params, tskIDLE_PRIORITY + 2, nullptr);
-    xTaskCreate(ui_task,       "ui",       512, nullptr,     tskIDLE_PRIORITY + 1, nullptr);
+    xTaskCreate(ui_task,       "ui",       512, &ui_params,  tskIDLE_PRIORITY + 1, nullptr);
 
     vTaskStartScheduler();
-    while (true) { /* should never get here */ }
+    while (true) {}
 }

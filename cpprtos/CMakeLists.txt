@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.12)
 # Name project
 SET(ProjectName rp2040-freertos-cpp-template)
 
+set(PICO_BOARD pico_w CACHE STRING "Board type")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 17)
 

@@ -22,6 +22,8 @@ static JoyDir dir_from_xy(uint16_t x, uint16_t y,
 {
     int dx = static_cast<int>(x) - static_cast<int>(cx);
     int dy = static_cast<int>(y) - static_cast<int>(cy);
+
+    if (t.invert_x) dx = -dx;
     if (t.invert_y) dy = -dy;
 
     if (std::abs(dx) < t.deadzone) dx = 0;

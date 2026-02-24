@@ -26,6 +26,7 @@ struct JoystickPins {
 struct JoystickTuning {
     uint16_t deadzone;       // +/- around center treated as neutral
     uint16_t threshold;      // how far to move before a direction triggers
+    bool invert_x;
     bool invert_y;
 
     TickType_t repeat_initial;
