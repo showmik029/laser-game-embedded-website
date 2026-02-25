@@ -47,12 +47,13 @@ static void ui_task(void* arg)
 
     InputEvent ev{};
     for (;;) {
-        // Wait for input, but wake periodically to refresh Wi-Fi status screen
+        // Wait for input, but wake periodically so games / Wi-Fi screen can tick.
         if (xQueueReceive(g_input_queue, &ev, pdMS_TO_TICKS(200)) == pdTRUE) {
             menu.handle(ev);
             menu.render(display);
         } else {
-            if (menu.wants_periodic_refresh()) {
+            // Timeout: allow menus/games to update without input.
+            if (menu.tick()) {
                 menu.render(display);
             }
         }
@@ -92,7 +93,7 @@ int main()
     static UiTaskParams ui_params { .wifi = &wifi };
 
     xTaskCreate(joystick_task, "joystick", 256, &joy_params, tskIDLE_PRIORITY + 2, nullptr);
-    xTaskCreate(ui_task,       "ui",       512, &ui_params,  tskIDLE_PRIORITY + 1, nullptr);
+    xTaskCreate(ui_task,       "ui",       768, &ui_params,  tskIDLE_PRIORITY + 1, nullptr);
 
     vTaskStartScheduler();
     while (true) {}

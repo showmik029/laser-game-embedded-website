@@ -15,6 +15,9 @@ add_executable(${ProjectName}
     wifi/wifi_manager.hpp
     wifi/wifi_secrets.hpp
     wifi/lwipopts.h
+
+    gamemodes/snake/snake_mode.cpp
+    gamemodes/snake/snake_mode.hpp
 )
 
 target_include_directories(${ProjectName} PRIVATE

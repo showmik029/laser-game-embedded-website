@@ -3,9 +3,16 @@
 #include <cstring>
 #include <cstdio>
 
+#include "FreeRTOS.h"
+#include "task.h"
+
 #include "wifi_manager.hpp"
 
+#include "gamemodes/game_mode.hpp"
+#include "gamemodes/snake/snake_mode.hpp"
+
 static const char* kCharset = " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.";
+static SnakeMode g_snake;
 
 static int charset_index(char c) {
     for (int i = 0; kCharset[i]; ++i) {
@@ -18,16 +25,39 @@ Menu::Menu(const MenuItem* items, size_t count, WifiManager& wifi)
     : items_(items), count_(count), wifi_(&wifi) {}
 
 bool Menu::wants_periodic_refresh() const {
-    return screen_ == Screen::Wifi;
+    return screen_ == Screen::Wifi || screen_ == Screen::Game;
+}
+
+bool Menu::tick() {
+    const TickType_t now = xTaskGetTickCount();
+
+    if (screen_ == Screen::Wifi) {
+        return true;
+    }
+
+    if (screen_ == Screen::Game && active_game_) {
+        const bool redraw = active_game_->tick(now);
+        if (active_game_->is_finished()) {
+            active_game_->on_exit();
+            active_game_ = nullptr;
+            screen_ = Screen::StartGame;
+            start_selected_ = 0;
+            return true;
+        }
+        return redraw;
+    }
+
+    return false;
 }
 
 void Menu::handle(InputEvent ev) {
     switch (screen_) {
-        case Screen::Main:    handle_main(ev); break;
-        case Screen::Options: handle_options(ev); break;
-        case Screen::Wifi:    handle_wifi(ev); break;
+        case Screen::Main:      handle_main(ev); break;
+        case Screen::StartGame: handle_start_game(ev); break;
+        case Screen::Options:   handle_options(ev); break;
+        case Screen::Wifi:      handle_wifi(ev); break;
+        case Screen::Game:      handle_game(ev); break;
         case Screen::About:
-        case Screen::Stub:
             if (ev == InputEvent::Select || ev == InputEvent::Left || ev == InputEvent::Back) {
                 screen_ = Screen::Main;
             }
@@ -41,9 +71,43 @@ void Menu::handle_main(InputEvent ev) {
     } else if (ev == InputEvent::Down) {
         selected_ = (selected_ + 1) % count_;
     } else if (ev == InputEvent::Select) {
-        if (selected_ == 0) screen_ = Screen::Stub;     // "Start game"
+        if (selected_ == 0) { screen_ = Screen::StartGame; start_selected_ = 0; } // Start game
         else if (selected_ == 1) { screen_ = Screen::Options; opt_selected_ = 0; }
         else if (selected_ == 2) screen_ = Screen::About;
+    }
+}
+
+void Menu::handle_start_game(InputEvent ev) {
+    if (ev == InputEvent::Up) {
+        start_selected_ = (start_selected_ == 0) ? 1 : 0;
+    } else if (ev == InputEvent::Down) {
+        start_selected_ = (start_selected_ + 1) % 2;
+    } else if (ev == InputEvent::Left || ev == InputEvent::Back) {
+        screen_ = Screen::Main;
+    } else if (ev == InputEvent::Select) {
+        if (start_selected_ == 0) { // Snake
+            active_game_ = &g_snake;
+            active_game_->on_enter();
+            screen_ = Screen::Game;
+        } else {
+            screen_ = Screen::Main;
+        }
+    }
+}
+
+void Menu::handle_game(InputEvent ev) {
+    if (!active_game_) {
+        screen_ = Screen::StartGame;
+        return;
+    }
+
+    active_game_->on_input(ev);
+
+    if (active_game_->is_finished()) {
+        active_game_->on_exit();
+        active_game_ = nullptr;
+        screen_ = Screen::StartGame;
+        start_selected_ = 0;
     }
 }
 
@@ -152,11 +216,12 @@ void Menu::ensure_wifi_buffers() {
 
 void Menu::render(Ssd1306I2C& display) {
     switch (screen_) {
-        case Screen::Main:    render_main(display); break;
-        case Screen::Options: render_options(display); break;
-        case Screen::Wifi:    render_wifi(display); break;
-        case Screen::Stub:    render_stub(display, "Start game"); break;
-        case Screen::About:   render_about(display); break;
+        case Screen::Main:      render_main(display); break;
+        case Screen::StartGame: render_start_game(display); break;
+        case Screen::Options:   render_options(display); break;
+        case Screen::Wifi:      render_wifi(display); break;
+        case Screen::About:     render_about(display); break;
+        case Screen::Game:      render_game(display); break;
     }
 }
 
@@ -172,6 +237,20 @@ void Menu::render_main(Ssd1306I2C& display) {
     }
 
     display.draw_text(0, 56, "Use stick + press");
+    display.show();
+}
+
+void Menu::render_start_game(Ssd1306I2C& display) {
+    display.clear();
+    display.draw_text(0, 0, "Start game");
+
+    if (start_selected_ == 0) display.draw_text(0, 16, ">");
+    display.draw_text(10, 16, "Snake");
+
+    if (start_selected_ == 1) display.draw_text(0, 24, ">");
+    display.draw_text(10, 24, "Back");
+
+    display.draw_text(0, 56, "Press to select");
     display.show();
 }
 
@@ -259,10 +338,15 @@ void Menu::render_about(Ssd1306I2C& display) {
     display.show();
 }
 
-void Menu::render_stub(Ssd1306I2C& display, const char* title) {
-    display.clear();
-    display.draw_text(0, 0, title);
-    display.draw_text(0, 20, "Not implemented");
-    display.draw_text(0, 36, "Press to go back");
-    display.show();
+void Menu::render_game(Ssd1306I2C& display) {
+    if (active_game_) {
+        active_game_->render(display);
+    } else {
+        display.clear();
+        display.draw_text(0, 0, "Game");
+        display.draw_text(0, 20, "No active game");
+        display.draw_text(0, 36, "Press to go back");
+        display.show();
+        screen_ = Screen::StartGame;
+    }
 }
