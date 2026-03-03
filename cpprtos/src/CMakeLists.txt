@@ -18,6 +18,9 @@ add_executable(${ProjectName}
 
     gamemodes/snake/snake_mode.cpp
     gamemodes/snake/snake_mode.hpp
+
+        laser/laser.cpp
+        laser/laser.hpp
 )
 
 target_include_directories(${ProjectName} PRIVATE

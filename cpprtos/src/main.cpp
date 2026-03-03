@@ -11,6 +11,7 @@
 #include "joystick.hpp"
 #include "menu.hpp"
 #include "wifi_manager.hpp"
+#include "laser/laser.hpp"
 
 extern "C" {
 uint32_t read_runtime_ctr(void) {
@@ -24,6 +25,8 @@ static QueueHandle_t g_input_queue = nullptr;
 struct UiTaskParams {
     WifiManager* wifi;
 };
+
+static Laser g_laser(13, 125);
 
 static void ui_task(void* arg)
 {
@@ -89,6 +92,9 @@ int main()
 
     static WifiManager wifi;
     wifi.start();
+
+    g_laser.init();
+    g_laser.start(tskIDLE_PRIORITY + 1, 256);
 
     static UiTaskParams ui_params { .wifi = &wifi };
 
