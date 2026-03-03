@@ -1,0 +1,207 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f7fb;
+  --foreground: #0f172a;
+  --muted: #5b6b7c;
+  --accent: #22d3ee;
+  --accent-2: #f97316;
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-strong: #ffffff;
+  --border: rgba(15, 23, 42, 0.12);
+  --shadow: rgba(15, 23, 42, 0.18);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(
+      700px circle at 12% 6%,
+      rgba(34, 211, 238, 0.18),
+      transparent 55%
+    ),
+    radial-gradient(
+      600px circle at 88% 18%,
+      rgba(249, 115, 22, 0.18),
+      transparent 55%
+    ),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  color: var(--foreground);
+  font-family: var(--font-display), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.35);
+  color: #071014;
+}
+
+.shell {
+  margin: 0 auto;
+  max-width: 72rem;
+  padding: 0 1.5rem;
+  width: 100%;
+}
+
+.card {
+  border-radius: 1.5rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 20px 50px -35px rgba(15, 23, 42, 0.45);
+}
+
+.kicker {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.nav-link {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted);
+  transition: color 0.2s ease;
+}
+
+.nav-link:hover {
+  color: var(--foreground);
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  background: var(--foreground);
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  box-shadow: 0 12px 24px -16px rgba(15, 23, 42, 0.7);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #000000;
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+  box-shadow: 0 4px 16px -12px rgba(15, 23, 42, 0.45);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.btn-secondary:hover {
+  border-color: var(--foreground);
+  transform: translateY(-2px);
+}
+
+.field {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.field::placeholder {
+  color: var(--muted);
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.35);
+}
+
+.laser-panel {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.6));
+  border: 1px solid var(--border);
+}
+
+.scan-line {
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.9), transparent);
+  height: 2px;
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 12%;
+  animation: scan 6s ease-in-out infinite;
+}
+
+.text-glow {
+  text-shadow: 0 0 18px rgba(34, 211, 238, 0.35);
+}
+
+.animate-rise {
+  animation: rise 0.7s ease-out both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scan {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.2;
+  }
+  50% {
+    transform: translateY(220%);
+    opacity: 0.85;
+  }
+}
