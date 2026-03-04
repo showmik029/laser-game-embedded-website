@@ -7,11 +7,11 @@
 
 // allow override in some examples
 #ifndef NO_SYS
-#define NO_SYS                      1
+#define NO_SYS                      0 // originally 1
 #endif
 // allow override in some examples
 #ifndef LWIP_SOCKET
-#define LWIP_SOCKET                 0
+#define LWIP_SOCKET                 1 // originally 0
 #endif
 #if PICO_CYW43_ARCH_POLL
 #define MEM_LIBC_MALLOC             1
@@ -35,7 +35,7 @@
 #define LWIP_NETIF_STATUS_CALLBACK  1
 #define LWIP_NETIF_LINK_CALLBACK    1
 #define LWIP_NETIF_HOSTNAME         1
-#define LWIP_NETCONN                0
+#define LWIP_NETCONN                1 // originally 0
 #define MEM_STATS                   0
 #define SYS_STATS                   0
 #define MEMP_STATS                  0

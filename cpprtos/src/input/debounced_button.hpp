@@ -63,7 +63,6 @@ private:
     bool readRaw() const { return gpio_get(pin_) != 0; }
 
     bool decodePressed(bool raw_level) const {
-        // If pressed_when_low == true: pressed when raw is 0 (GPIO tied to GND)
         return pressed_when_low_ ? !raw_level : raw_level;
     }
 
