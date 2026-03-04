@@ -7,6 +7,7 @@ add_executable(${ProjectName}
 
     input/joystick.cpp
     input/joystick.hpp
+    input/debounced_button.hpp
 
     ui/menu.cpp
     ui/menu.hpp
@@ -19,8 +20,8 @@ add_executable(${ProjectName}
     gamemodes/snake/snake_mode.cpp
     gamemodes/snake/snake_mode.hpp
 
-        laser/laser.cpp
-        laser/laser.hpp
+    laser/laser.cpp
+    laser/laser.hpp
 )
 
 target_include_directories(${ProjectName} PRIVATE

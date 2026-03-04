@@ -26,7 +26,15 @@ struct UiTaskParams {
     WifiManager* wifi;
 };
 
-static Laser g_laser(13, 125);
+static Laser g_laser(LaserConfig{
+    .laser_pin = 13,
+    .button_pin = 12,
+    .button_pull = DebouncedButton::Pull::Up,
+    .button_pressed_when_low = true,
+    .hold_ms = 250,
+    .auto_period_ms = 100,
+    .pulse_ms = 20,
+});
 
 static void ui_task(void* arg)
 {
