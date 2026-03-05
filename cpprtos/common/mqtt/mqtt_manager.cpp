@@ -7,6 +7,7 @@ extern "C" {
 }
 
 static constexpr const char* kRepliesTopic = "laser-labs/gamemodes/replies";
+static constexpr const char* kStartTopic   = "laser-labs/gamemodes/start";
 
 MqttManager::MqttManager(WifiManager& wifi) : wifi_(wifi) {
     events_ = xEventGroupCreate();
@@ -134,6 +135,17 @@ void MqttManager::task() {
         rc = MQTTSubscribe(&client_, (char*)kRepliesTopic, QOS0, &MqttManager::message_arrived);
         if (rc != 0) {
             printf("MQTT: Subscribe failed rc=%d\n", rc);
+            MQTTDisconnect(&client_);
+            NetworkDisconnect(&network_);
+            xEventGroupClearBits(events_, MQTT_CONNECTING);
+            xEventGroupSetBits(events_, MQTT_FAILED);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            continue;
+        }
+
+        rc = MQTTSubscribe(&client_, (char*)kStartTopic, QOS0, &MqttManager::message_arrived);
+        if (rc != 0) {
+            printf("MQTT: Subscribe start failed rc=%d\n", rc);
             MQTTDisconnect(&client_);
             NetworkDisconnect(&network_);
             xEventGroupClearBits(events_, MQTT_CONNECTING);

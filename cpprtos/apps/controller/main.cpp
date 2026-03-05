@@ -14,12 +14,6 @@
 #include "mqtt_manager.hpp"
 #include "laser/laser.hpp"
 
-extern "C" {
-uint32_t read_runtime_ctr(void) {
-    return timer_hw->timerawl;
-    }
-}
-
 // Queue for input events (joystick directions + button)
 static QueueHandle_t g_input_queue = nullptr;
 
