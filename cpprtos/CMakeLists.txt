@@ -21,6 +21,8 @@ project(${ProjectName})
 # Initialize the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+set(PAHO_EMBEDDED_C_PATH ${CMAKE_CURRENT_LIST_DIR}/paho.mqtt.embedded-c CACHE PATH "Path to paho.mqtt.embedded-c")
+
 # Add subdirectories
 add_subdirectory(src)
 

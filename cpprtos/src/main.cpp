@@ -16,7 +16,7 @@
 extern "C" {
 uint32_t read_runtime_ctr(void) {
     return timer_hw->timerawl;
-}
+    }
 }
 
 // Queue for input events (joystick directions + button)
@@ -99,15 +99,20 @@ int main()
     };
 
     static WifiManager wifi;
-    wifi.start();
+    wifi.start(tskIDLE_PRIORITY + 1, 1024);
 
     g_laser.init();
-    g_laser.start(tskIDLE_PRIORITY + 1, 256);
+    g_laser.start(tskIDLE_PRIORITY + 1, 512);
 
     static UiTaskParams ui_params { .wifi = &wifi };
 
-    xTaskCreate(joystick_task, "joystick", 256, &joy_params, tskIDLE_PRIORITY + 2, nullptr);
-    xTaskCreate(ui_task,       "ui",       768, &ui_params,  tskIDLE_PRIORITY + 1, nullptr);
+    BaseType_t ok;
+
+    ok = xTaskCreate(joystick_task, "joystick", 1024, &joy_params, tskIDLE_PRIORITY + 2, nullptr);
+    configASSERT(ok == pdPASS);
+
+    ok = xTaskCreate(ui_task, "ui", 1024, &ui_params, tskIDLE_PRIORITY + 1, nullptr);
+    configASSERT(ok == pdPASS);
 
     vTaskStartScheduler();
     while (true) {}

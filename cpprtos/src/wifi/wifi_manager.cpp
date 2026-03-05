@@ -24,12 +24,12 @@ WifiManager::WifiManager() {
 }
 
 void WifiManager::start(UBaseType_t priority, uint32_t stackWords) {
-    xTaskCreate(&WifiManager::taskTrampoline,
-                "wifi",
-                stackWords,
-                this,
-                priority,
-                &taskHandle_);
+    configASSERT(xTaskCreate(&WifiManager::taskTrampoline,
+                         "wifi",
+                         stackWords,
+                         this,
+                         priority,
+                         &taskHandle_) == pdPASS);
 }
 
 bool WifiManager::request_connect(const char* ssid, const char* password, TickType_t timeout) {

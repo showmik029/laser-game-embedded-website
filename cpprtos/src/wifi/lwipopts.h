@@ -20,7 +20,7 @@
 #define MEM_LIBC_MALLOC             0
 #endif
 #define MEM_ALIGNMENT               4
-#define MEM_SIZE                    4000
+#define MEM_SIZE                    16000
 #define MEMP_NUM_TCP_SEG            32
 #define MEMP_NUM_ARP_QUEUE          10
 #define PBUF_POOL_SIZE              24
@@ -51,6 +51,13 @@
 #define LWIP_NETIF_TX_SINGLE_PBUF   1
 #define DHCP_DOES_ARP_CHECK         0
 #define LWIP_DHCP_DOES_ACD_CHECK    0
+
+#define LWIP_TIMEVAL_PRIVATE        0 // added
+#define TCPIP_MBOX_SIZE             8
+#define DEFAULT_UDP_RECVMBOX_SIZE   8
+#define DEFAULT_TCP_RECVMBOX_SIZE   8
+#define DEFAULT_ACCEPTMBOX_SIZE     8
+#define DEFAULT_RAW_RECVMBOX_SIZE   8
 
 #ifndef NDEBUG
 #define LWIP_DEBUG                  1
@@ -86,5 +93,10 @@
 #define PPP_DEBUG                   LWIP_DBG_OFF
 #define SLIP_DEBUG                  LWIP_DBG_OFF
 #define DHCP_DEBUG                  LWIP_DBG_OFF
+
+#if !NO_SYS
+#define TCPIP_THREAD_STACKSIZE      1024
+#define DEFAULT_THREAD_STACKSIZE    2048
+#endif
 
 #endif /* __LWIPOPTS_H__ */
