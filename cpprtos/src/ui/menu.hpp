@@ -6,6 +6,7 @@
 #include "ssd1306_i2c.hpp"
 
 class WifiManager;
+class MqttManager;
 class GameMode;
 
 struct MenuItem {
@@ -14,7 +15,7 @@ struct MenuItem {
 
 class Menu {
 public:
-    Menu(const MenuItem* items, size_t count, WifiManager& wifi);
+    Menu(const MenuItem* items, size_t count, WifiManager& wifi, MqttManager& mqtt);
 
     void handle(InputEvent ev);
     void render(Ssd1306I2C& display);
@@ -61,7 +62,7 @@ private:
     Screen screen_ = Screen::Main;
 
     // Start Game screen selection
-    size_t start_selected_ = 0; // 0=Snake, 1=Back
+    size_t start_selected_ = 0; // 0=Snake, 1=Game1, 2=Back
 
     // Options screen selection
     size_t opt_selected_ = 0; // 0=Wi-Fi, 1=Back
@@ -80,4 +81,5 @@ private:
     GameMode* active_game_ = nullptr;
 
     WifiManager* wifi_;
+    MqttManager* mqtt_;
 };

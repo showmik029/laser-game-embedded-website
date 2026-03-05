@@ -11,6 +11,7 @@
 #include "joystick.hpp"
 #include "menu.hpp"
 #include "wifi_manager.hpp"
+#include "mqtt_manager.hpp"
 #include "laser/laser.hpp"
 
 extern "C" {
@@ -24,6 +25,7 @@ static QueueHandle_t g_input_queue = nullptr;
 
 struct UiTaskParams {
     WifiManager* wifi;
+    MqttManager* mqtt;
 };
 
 static Laser g_laser(LaserConfig{
@@ -53,7 +55,7 @@ static void ui_task(void* arg)
         { "About"     },
     };
 
-    Menu menu(kMainItems, sizeof(kMainItems) / sizeof(kMainItems[0]), *params->wifi);
+    Menu menu(kMainItems, sizeof(kMainItems) / sizeof(kMainItems[0]), *params->wifi, *params->mqtt);
     menu.render(display);
 
     InputEvent ev{};
@@ -101,10 +103,13 @@ int main()
     static WifiManager wifi;
     wifi.start(tskIDLE_PRIORITY + 1, 1024);
 
+    static MqttManager mqtt(wifi);
+    mqtt.start("192.168.100.38", 1883, "pico-laser-ui", tskIDLE_PRIORITY + 1, 4096);
+
     g_laser.init();
     g_laser.start(tskIDLE_PRIORITY + 1, 512);
 
-    static UiTaskParams ui_params { .wifi = &wifi };
+    static UiTaskParams ui_params { .wifi = &wifi, .mqtt = &mqtt };
 
     BaseType_t ok;
 

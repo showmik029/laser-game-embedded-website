@@ -41,12 +41,16 @@ add_executable(${ProjectName}
 
     gamemodes/snake/snake_mode.cpp
     gamemodes/snake/snake_mode.hpp
+    gamemodes/mqtt_game1/mqtt_game1_mode.cpp
+    gamemodes/mqtt_game1/mqtt_game1_mode.hpp
 
     laser/laser.cpp
     laser/laser.hpp
 
     mqtt/pico_mqtt_platform.c
     mqtt/pico_mqtt_platform.h
+    mqtt/mqtt_manager.cpp
+    mqtt/mqtt_manager.hpp
 )
 
 target_include_directories(${ProjectName} PRIVATE

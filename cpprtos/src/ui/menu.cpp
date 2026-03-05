@@ -7,12 +7,15 @@
 #include "task.h"
 
 #include "wifi_manager.hpp"
+#include "mqtt_manager.hpp"
 
 #include "gamemodes/game_mode.hpp"
 #include "gamemodes/snake/snake_mode.hpp"
+#include "gamemodes/mqtt_game1/mqtt_game1_mode.hpp"
 
 static const char* kCharset = " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.";
 static SnakeMode g_snake;
+static MqttGame1Mode g_game1;
 
 static int charset_index(char c) {
     for (int i = 0; kCharset[i]; ++i) {
@@ -21,8 +24,10 @@ static int charset_index(char c) {
     return 0; // space
 }
 
-Menu::Menu(const MenuItem* items, size_t count, WifiManager& wifi)
-    : items_(items), count_(count), wifi_(&wifi) {}
+Menu::Menu(const MenuItem* items, size_t count, WifiManager& wifi, MqttManager& mqtt)
+    : items_(items), count_(count), wifi_(&wifi), mqtt_(&mqtt) {
+    g_game1.bind(wifi_, mqtt_);
+}
 
 bool Menu::wants_periodic_refresh() const {
     return screen_ == Screen::Wifi || screen_ == Screen::WifiEdit || screen_ == Screen::Game;
@@ -79,10 +84,12 @@ void Menu::handle_main(InputEvent ev) {
 }
 
 void Menu::handle_start_game(InputEvent ev) {
+    constexpr size_t kCount = 3; // Snake, Game1, Back
+
     if (ev == InputEvent::Up) {
-        start_selected_ = (start_selected_ == 0) ? 1 : 0;
+        start_selected_ = (start_selected_ == 0) ? (kCount - 1) : (start_selected_ - 1);
     } else if (ev == InputEvent::Down) {
-        start_selected_ = (start_selected_ + 1) % 2;
+        start_selected_ = (start_selected_ + 1) % kCount;
     } else if (ev == InputEvent::Left || ev == InputEvent::Back) {
         screen_ = Screen::Main;
     } else if (ev == InputEvent::Select) {
@@ -90,7 +97,11 @@ void Menu::handle_start_game(InputEvent ev) {
             active_game_ = &g_snake;
             active_game_->on_enter();
             screen_ = Screen::Game;
-        } else {
+        } else if (start_selected_ == 1) { // Game1 (MQTT)
+            active_game_ = &g_game1;
+            active_game_->on_enter();
+            screen_ = Screen::Game;
+        } else { // Back
             screen_ = Screen::Main;
         }
     }
@@ -293,7 +304,10 @@ void Menu::render_start_game(Ssd1306I2C& display) {
     display.draw_text(10, 16, "Snake");
 
     if (start_selected_ == 1) display.draw_text(0, 24, ">");
-    display.draw_text(10, 24, "Back");
+    display.draw_text(10, 24, "Game1");
+
+    if (start_selected_ == 2) display.draw_text(0, 32, ">");
+    display.draw_text(10, 32, "Back");
 
     display.draw_text(0, 56, "Press to select");
     display.show();
