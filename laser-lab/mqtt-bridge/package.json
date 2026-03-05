@@ -1,0 +1,15 @@
+{
+  "name": "mqtt-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MQTT to Supabase bridge for Laser Labs",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
+    "dotenv": "^16.4.5",
+    "mqtt": "^5.10.3"
+  }
+}
