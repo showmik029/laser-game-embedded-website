@@ -13,6 +13,8 @@ class MqttGame1Mode : public GameMode {
 public:
     void bind(WifiManager* wifi, MqttManager* mqtt) { wifi_ = wifi; mqtt_ = mqtt; }
 
+    void set_player_name(const char* name);
+
     void on_enter() override;
     void on_exit() override;
     void on_input(InputEvent ev) override;
@@ -36,6 +38,9 @@ private:
     const char* targets_[2] = {"pico-1", "pico-2"};
     int current_target_idx_{0};
     char current_target_[16]{};
+
+    char player_name_[33]{"default"};
+    int points_{0}; // placeholder for now
 
     enum class State { NeedWifi, NeedMqtt, WaitingHit, Done, Aborted };
     State state_{State::NeedWifi};

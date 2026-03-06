@@ -4,16 +4,24 @@
 #include <cstdlib>
 #include <cstring>
 
-static constexpr const char* kStartTopic   = "laser-labs/gamemodes/start";
-static constexpr const char* kRepliesTopic = "laser-labs/gamemodes/replies";
+static constexpr const char* kStartTopic    = "laser-labs/gamemodes/start";
+static constexpr const char* kRepliesTopic  = "laser-labs/gamemodes/replies";
+static constexpr const char* kFinishedTopic = "laser-labs/gamemodes/finished";
 
 static constexpr TickType_t kHitTimeout = pdMS_TO_TICKS(15000);
 static constexpr int kMaxRetries = 2;
+
+void MqttGame1Mode::set_player_name(const char* name) {
+    const char* src = (name && name[0]) ? name : "default";
+    std::strncpy(player_name_, src, sizeof(player_name_) - 1);
+    player_name_[sizeof(player_name_) - 1] = '\0';
+}
 
 void MqttGame1Mode::on_enter() {
     finished_ = false;
     round_ = 0;
     retries_ = 0;
+    points_ = 0; // placeholder for now
     state_ = State::NeedWifi;
 
     // seed rand once-ish
@@ -27,7 +35,16 @@ void MqttGame1Mode::on_enter() {
 }
 
 void MqttGame1Mode::on_exit() {
-    // Optional: publish a "stop" message later if you want
+    if (!mqtt_) return;
+
+    char payload[160]{};
+    std::snprintf(payload, sizeof(payload),
+                  "username=%s;points=%d;game=game1",
+                  player_name_[0] ? player_name_ : "default",
+                  points_);
+
+    mqtt_->publish(kFinishedTopic, payload, /*qos=*/0, /*timeout=*/0);
+    printf("GAME1: publish %s -> %s\n", kFinishedTopic, payload);
 }
 
 void MqttGame1Mode::on_input(InputEvent ev) {
@@ -38,19 +55,15 @@ void MqttGame1Mode::on_input(InputEvent ev) {
 }
 
 bool MqttGame1Mode::parse_hit(const MqttManager::RxMessage& m, const char* expected_target) {
-    // We expect targets to publish something like:
-    // "game=game1;target=pico-1;event=hit;round=3"
-    // We'll accept any payload containing:
-    // "target=<expected_target>" AND ("hit" OR "event=hit")
     if (std::strcmp(m.topic, kRepliesTopic) != 0) return false;
-
     if (!expected_target || expected_target[0] == '\0') return false;
 
     char needle[32]{};
     std::snprintf(needle, sizeof(needle), "target=%s", expected_target);
 
     const bool has_target = (std::strstr(m.payload, needle) != nullptr);
-    const bool has_hit = (std::strstr(m.payload, "event=hit") != nullptr) || (std::strstr(m.payload, "hit") != nullptr);
+    const bool has_hit = (std::strstr(m.payload, "event=hit") != nullptr) ||
+                         (std::strstr(m.payload, "hit") != nullptr);
 
     return has_target && has_hit;
 }
@@ -95,12 +108,15 @@ bool MqttGame1Mode::tick(TickType_t now) {
     }
 
     if (state_ == State::WaitingHit) {
-        // Drain incoming replies (non-blocking)
         MqttManager::RxMessage rx{};
         while (mqtt_->try_receive(rx, 0)) {
             if (parse_hit(rx, current_target_)) {
                 printf("GAME1: HIT confirmed for %s (round %d)\n", current_target_, round_ + 1);
                 round_++;
+
+                // Placeholder scoring for now
+                points_ = 0;
+
                 if (round_ >= kRounds) {
                     state_ = State::Done;
                     finished_ = true;
@@ -111,7 +127,6 @@ bool MqttGame1Mode::tick(TickType_t now) {
             }
         }
 
-        // Timeout => retry publish a couple times
         if ((now - last_send_) > kHitTimeout) {
             if (retries_ < kMaxRetries) {
                 retries_++;
@@ -150,11 +165,11 @@ void MqttGame1Mode::render(Ssd1306I2C& display) {
     display.draw_text(0, 24, line);
 
     const char* st = "Idle";
-    if (state_ == State::NeedWifi)  st = "Need Wi-Fi";
-    if (state_ == State::NeedMqtt)  st = "Need MQTT";
+    if (state_ == State::NeedWifi)   st = "Need Wi-Fi";
+    if (state_ == State::NeedMqtt)   st = "Need MQTT";
     if (state_ == State::WaitingHit) st = "Waiting hit";
-    if (state_ == State::Done)      st = "Done!";
-    if (state_ == State::Aborted)   st = "Aborted";
+    if (state_ == State::Done)       st = "Done!";
+    if (state_ == State::Aborted)    st = "Aborted";
 
     display.draw_text(0, 40, "Status:");
     display.draw_text(54, 40, st);
