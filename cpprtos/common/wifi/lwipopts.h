@@ -7,11 +7,11 @@
 
 // allow override in some examples
 #ifndef NO_SYS
-#define NO_SYS                      1
+#define NO_SYS                      0 // originally 1
 #endif
 // allow override in some examples
 #ifndef LWIP_SOCKET
-#define LWIP_SOCKET                 0
+#define LWIP_SOCKET                 1 // originally 0
 #endif
 #if PICO_CYW43_ARCH_POLL
 #define MEM_LIBC_MALLOC             1
@@ -20,7 +20,7 @@
 #define MEM_LIBC_MALLOC             0
 #endif
 #define MEM_ALIGNMENT               4
-#define MEM_SIZE                    4000
+#define MEM_SIZE                    16000
 #define MEMP_NUM_TCP_SEG            32
 #define MEMP_NUM_ARP_QUEUE          10
 #define PBUF_POOL_SIZE              24
@@ -35,7 +35,7 @@
 #define LWIP_NETIF_STATUS_CALLBACK  1
 #define LWIP_NETIF_LINK_CALLBACK    1
 #define LWIP_NETIF_HOSTNAME         1
-#define LWIP_NETCONN                0
+#define LWIP_NETCONN                1 // originally 0
 #define MEM_STATS                   0
 #define SYS_STATS                   0
 #define MEMP_STATS                  0
@@ -51,6 +51,13 @@
 #define LWIP_NETIF_TX_SINGLE_PBUF   1
 #define DHCP_DOES_ARP_CHECK         0
 #define LWIP_DHCP_DOES_ACD_CHECK    0
+
+#define LWIP_TIMEVAL_PRIVATE        0 // added
+#define TCPIP_MBOX_SIZE             8
+#define DEFAULT_UDP_RECVMBOX_SIZE   8
+#define DEFAULT_TCP_RECVMBOX_SIZE   8
+#define DEFAULT_ACCEPTMBOX_SIZE     8
+#define DEFAULT_RAW_RECVMBOX_SIZE   8
 
 #ifndef NDEBUG
 #define LWIP_DEBUG                  1
@@ -86,5 +93,10 @@
 #define PPP_DEBUG                   LWIP_DBG_OFF
 #define SLIP_DEBUG                  LWIP_DBG_OFF
 #define DHCP_DEBUG                  LWIP_DBG_OFF
+
+#if !NO_SYS
+#define TCPIP_THREAD_STACKSIZE      1024
+#define DEFAULT_THREAD_STACKSIZE    2048
+#endif
 
 #endif /* __LWIPOPTS_H__ */

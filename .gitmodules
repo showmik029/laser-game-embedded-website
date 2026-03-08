@@ -1,0 +1,6 @@
+[submodule "cpprtos/lib/paho.mqtt.embedded-c"]
+	path = cpprtos/lib/paho.mqtt.embedded-c
+	url = https://github.com/eclipse/paho.mqtt.embedded-c.git
+[submodule "cpprtos/paho.mqtt.embedded-c"]
+	path = cpprtos/paho.mqtt.embedded-c
+	url = https://github.com/eclipse-paho/paho.mqtt.embedded-c.git

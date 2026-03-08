@@ -1,30 +1,20 @@
 cmake_minimum_required(VERSION 3.12)
 
-# Name project
-SET(ProjectName rp2040-freertos-cpp-template)
-
 set(PICO_BOARD pico_w CACHE STRING "Board type")
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 17)
 
-# Set any variables required for importing libraries
-SET(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS-KernelV10.6.2)
+set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_SOURCE_DIR}/FreeRTOS-KernelV10.6.2)
+set(PAHO_EMBEDDED_C_PATH ${CMAKE_CURRENT_SOURCE_DIR}/paho.mqtt.embedded-c)
 
-# Import those libraries
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+
+set(FREERTOS_CONFIG_FILE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
 include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
 
-# Define project
-project(${ProjectName})
-
-# Initialize the Raspberry Pi Pico SDK
+project(laser_labs_multi C CXX ASM)
 pico_sdk_init()
 
-# Add subdirectories
-add_subdirectory(src)
-
-# if you have anything in "lib" folder then uncomment below - remember to add a CMakeLists.txt
-# file to the "lib" directory
-#add_subdirectory(lib)
-
+add_subdirectory(common)
+add_subdirectory(apps/controller)
+add_subdirectory(apps/target)

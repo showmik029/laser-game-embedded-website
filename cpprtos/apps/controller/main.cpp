@@ -11,19 +11,26 @@
 #include "joystick.hpp"
 #include "menu.hpp"
 #include "wifi_manager.hpp"
-
-extern "C" {
-uint32_t read_runtime_ctr(void) {
-    return timer_hw->timerawl;
-}
-}
+#include "mqtt_manager.hpp"
+#include "laser/laser.hpp"
 
 // Queue for input events (joystick directions + button)
 static QueueHandle_t g_input_queue = nullptr;
 
 struct UiTaskParams {
     WifiManager* wifi;
+    MqttManager* mqtt;
 };
+
+static Laser g_laser(LaserConfig{
+    .laser_pin = 13,
+    .button_pin = 12,
+    .button_pull = DebouncedButton::Pull::Up,
+    .button_pressed_when_low = true,
+    .hold_ms = 250,
+    .auto_period_ms = 100,
+    .pulse_ms = 20,
+});
 
 static void ui_task(void* arg)
 {
@@ -42,7 +49,7 @@ static void ui_task(void* arg)
         { "About"     },
     };
 
-    Menu menu(kMainItems, sizeof(kMainItems) / sizeof(kMainItems[0]), *params->wifi);
+    Menu menu(kMainItems, sizeof(kMainItems) / sizeof(kMainItems[0]), *params->wifi, *params->mqtt);
     menu.render(display);
 
     InputEvent ev{};
@@ -88,12 +95,23 @@ int main()
     };
 
     static WifiManager wifi;
-    wifi.start();
+    wifi.start(tskIDLE_PRIORITY + 1, 1024);
 
-    static UiTaskParams ui_params { .wifi = &wifi };
+    static MqttManager mqtt(wifi);
+    mqtt.start("192.168.100.38", 1883, "pico-laser-ui", tskIDLE_PRIORITY + 1, 4096);
 
-    xTaskCreate(joystick_task, "joystick", 256, &joy_params, tskIDLE_PRIORITY + 2, nullptr);
-    xTaskCreate(ui_task,       "ui",       768, &ui_params,  tskIDLE_PRIORITY + 1, nullptr);
+    g_laser.init();
+    g_laser.start(tskIDLE_PRIORITY + 1, 512);
+
+    static UiTaskParams ui_params { .wifi = &wifi, .mqtt = &mqtt };
+
+    BaseType_t ok;
+
+    ok = xTaskCreate(joystick_task, "joystick", 1024, &joy_params, tskIDLE_PRIORITY + 2, nullptr);
+    configASSERT(ok == pdPASS);
+
+    ok = xTaskCreate(ui_task, "ui", 1024, &ui_params, tskIDLE_PRIORITY + 1, nullptr);
+    configASSERT(ok == pdPASS);
 
     vTaskStartScheduler();
     while (true) {}
