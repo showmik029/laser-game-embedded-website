@@ -9,14 +9,12 @@
 TargetController::TargetController(const Config& cfg) : cfg_(cfg) {}
 
 void TargetController::init() {
-    // LEDs
     for (int i = 0; i < cfg_.num_channels; ++i) {
         gpio_init(cfg_.channels[i].led_gpio);
         gpio_set_dir(cfg_.channels[i].led_gpio, GPIO_OUT);
         gpio_put(cfg_.channels[i].led_gpio, 0);
     }
 
-    // ADC
     adc_init();
     for (int i = 0; i < cfg_.num_channels; ++i) {
         adc_gpio_init(cfg_.channels[i].adc_gpio);
@@ -33,11 +31,10 @@ int TargetController::find_channel(const char* id) const {
 
 uint16_t TargetController::read_adc(int idx) const {
     adc_select_input(cfg_.channels[idx].adc_input);
-    return adc_read(); // 12-bit (0..4095)
+    return adc_read();
 }
 
 void TargetController::arm(const char* target_id, int round) {
-    // turn off all LEDs
     for (int i = 0; i < cfg_.num_channels; ++i) gpio_put(cfg_.channels[i].led_gpio, 0);
 
     int idx = find_channel(target_id);
@@ -51,10 +48,8 @@ void TargetController::arm(const char* target_id, int round) {
     armed_round_ = round;
     armed_since_ms_ = to_ms_since_boot(get_absolute_time());
 
-    // LED on
     gpio_put(cfg_.channels[idx].led_gpio, 1);
 
-    // Baseline average
     uint32_t sum = 0;
     for (int i = 0; i < cfg_.baseline_samples; ++i) {
         sum += read_adc(idx);
@@ -64,9 +59,28 @@ void TargetController::arm(const char* target_id, int round) {
     printf("ARM: %s round=%d baseline=%u\n", armed_id_, armed_round_, baseline_);
 }
 
+void TargetController::arm_all() {
+    // Start with all LEDs off
+    for (int i = 0; i < cfg_.num_channels; ++i) {
+        gpio_put(cfg_.channels[i].led_gpio, 0);
+    }
+
+    // Calibrate baselines
+    for (int i = 0; i < cfg_.num_channels; ++i) {
+        uint32_t sum = 0;
+        for (int j = 0; j < cfg_.baseline_samples; ++j) {
+            sum += read_adc(i);
+            sleep_ms(cfg_.sample_delay_ms);
+        }
+        baselines_all_[i] = (uint16_t)(sum / (uint32_t)cfg_.baseline_samples);
+        cooldowns_all_[i] = 0;
+        printf("ARM_ALL: channel %d baseline=%u\n", i, baselines_all_[i]);
+    }
+}
+
 void TargetController::disarm() {
-    if (armed_idx_ >= 0) {
-        gpio_put(cfg_.channels[armed_idx_].led_gpio, 0);
+    for (int i = 0; i < cfg_.num_channels; ++i) {
+        gpio_put(cfg_.channels[i].led_gpio, 0);
     }
     armed_idx_ = -1;
     armed_id_ = nullptr;
@@ -78,13 +92,11 @@ TargetController::HitEvent TargetController::tick(uint32_t now_ms) {
 
     if (armed_idx_ < 0) return ev;
 
-    // timeout
     if (now_ms - armed_since_ms_ > cfg_.arm_timeout_ms) {
         disarm();
         return ev;
     }
 
-    // cooldown after a hit
     if ((int32_t)(now_ms - cooldown_until_ms_) < 0) return ev;
 
     uint16_t v = read_adc(armed_idx_);
@@ -102,9 +114,31 @@ TargetController::HitEvent TargetController::tick(uint32_t now_ms) {
         ev.target_id = armed_id_;
         ev.round = armed_round_;
 
-        // disarm + cooldown
         disarm();
         cooldown_until_ms_ = now_ms + cfg_.cooldown_ms;
+    }
+
+    return ev;
+}
+
+TargetController::HitEvent TargetController::tick_all(uint32_t now_ms) {
+    HitEvent ev{};
+
+    for (int i = 0; i < cfg_.num_channels; ++i) {
+        if ((int32_t)(now_ms - cooldowns_all_[i]) < 0) continue;
+
+        uint16_t v = read_adc(i);
+        int diff = (int)v - (int)baselines_all_[i];
+        if (diff < 0) diff = -diff;
+
+        if ((uint16_t)diff > cfg_.hit_delta) {
+            ev.hit = true;
+            ev.target_id = cfg_.channels[i].id;
+            ev.round = i; // pass index back so we know which LED to flash
+            cooldowns_all_[i] = now_ms + cfg_.cooldown_ms;
+            printf("HIT_ALL: %s diff=%d\n", cfg_.channels[i].id, diff);
+            break;
+        }
     }
 
     return ev;

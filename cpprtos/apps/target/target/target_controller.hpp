@@ -7,24 +7,28 @@
 class TargetController {
 public:
     struct Channel {
-        const char* id;       // "pico-1" / "pico-2"
-        uint adc_gpio;        // 26 / 27
-        uint adc_input;       // 0 / 1
-        uint led_gpio;        // 14 / 15
+        const char* id;
+        uint adc_gpio;
+        uint adc_input;
+        uint led_gpio;
     };
 
     struct Config {
-        Channel channels[2];
-        int num_channels = 2;
+        Channel channels[3] = {
+            { "pico-1", 28, 2, 15 },
+            { "pico-2", 27, 1, 14 },
+            { "pico-3", 26, 0, 13 },
+        };
+        int num_channels = 3;
 
         int baseline_samples = 25;
         int sample_delay_ms  = 5;
 
-        uint16_t hit_delta = 500;      // need to test different values
+        uint16_t hit_delta = 500;
         uint32_t arm_timeout_ms = 15000;
         uint32_t cooldown_ms    = 600;
 
-        uint32_t debug_print_ms = 200;   // 0 = off
+        uint32_t debug_print_ms = 200;
     };
 
     struct HitEvent {
@@ -37,7 +41,9 @@ public:
 
     void init();
     void arm(const char* target_id, int round);
+    void arm_all();
     HitEvent tick(uint32_t now_ms);
+    HitEvent tick_all(uint32_t now_ms);
     void disarm();
 
     const char* armed_target() const { return armed_id_; }
@@ -59,4 +65,7 @@ private:
     uint32_t cooldown_until_ms_ = 0;
 
     uint32_t last_debug_ms_ = 0;
+
+    uint16_t baselines_all_[3] = {};
+    uint32_t cooldowns_all_[3] = {};
 };
