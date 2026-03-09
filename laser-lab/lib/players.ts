@@ -8,8 +8,11 @@ export async function getPlayers() {
     const supabase = createSupabaseServerClient();
     const { data, error } = await supabase
       .from("players")
-      .select("id, player_name, score, accuracy, updated_at")
-      .order("score", { ascending: false });
+      .select(
+        "id, player_name, game_mode, score, point, time_speed, ammo_used, updated_at"
+      )
+      .order("score", { ascending: false })
+      .order("updated_at", { ascending: false });
 
     if (error) {
       throw new Error(error.message);

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 require("dotenv").config();
 const mqtt = require("mqtt");
 const { createClient } = require("@supabase/supabase-js");
@@ -48,66 +49,69 @@ function parseEvent(rawPayload) {
 
   // Supports both full payload keys and compact keys from embedded firmware.
   const player_name = msg.player_name || msg.p || msg.player || "Unknown";
-  const score_delta = Number(msg.score_delta ?? msg.sd ?? 0);
-  const accuracy_delta = Number(msg.accuracy_delta ?? msg.ad ?? 0);
+  const rawMode = String(msg.game_mode ?? msg.mode ?? msg.gm ?? "classic")
+    .toLowerCase()
+    .trim();
 
-  return { player_name, score_delta, accuracy_delta, raw: msg };
+  // MQTT payload and DB now use friendly mode names.
+  let game_mode = "classic";
+  if (["time_trial", "time-trial", "time trial"].includes(rawMode)) {
+    game_mode = "time_trial";
+  } else if (
+    ["photon_panic", "photon-panic", "photon panic"].includes(rawMode)
+  ) {
+    game_mode = "photon_panic";
+  } else if (rawMode === "classic") {
+    game_mode = "classic";
+  }
+  const score = Number(msg.score ?? msg.score_delta ?? msg.sd ?? 0);
+  const point = Number(msg.point ?? msg.point_delta ?? msg.pt ?? 0);
+  const ammo_used = Number(msg.ammo_used ?? msg.ammo_used_delta ?? msg.au ?? 0);
+  const time_speed = Number(msg.time_speed ?? msg.speed ?? msg.ts ?? 0);
+
+  return {
+    player_name,
+    game_mode,
+    score,
+    point,
+    ammo_used,
+    time_speed,
+  };
 }
 
-async function upsertPlayerScore(player_name, score_delta, accuracy_delta) {
-  const { data: existing, error: selectError } = await supabase
-    .from("players")
-    .select("id, score, accuracy")
-    .eq("player_name", player_name)
-    .maybeSingle();
+async function insertPlayerResult(player_name, game_mode, score, point, ammo_used, time_speed) {
+  const { error: insertError } = await supabase.from("players").insert({
+    player_name,
+    game_mode,
+    score,
+    point,
+    time_speed,
+    ammo_used,
+  });
 
-  if (selectError) {
-    throw new Error(`select failed: ${selectError.message}`);
+  if (insertError) {
+    throw new Error(`insert failed: ${insertError.message}`);
   }
 
-  if (!existing) {
-    const { error: insertError } = await supabase.from("players").insert({
-      player_name,
-      score: score_delta,
-      accuracy: accuracy_delta,
-    });
-    if (insertError) {
-      throw new Error(`insert failed: ${insertError.message}`);
-    }
-    return { action: "inserted", score: score_delta, accuracy: accuracy_delta };
-  }
-
-  const nextScore = Number(existing.score) + score_delta;
-  const nextAccuracy = Number(existing.accuracy) + accuracy_delta;
-
-  const { error: updateError } = await supabase
-    .from("players")
-    .update({
-      score: nextScore,
-      accuracy: nextAccuracy,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", existing.id);
-
-  if (updateError) {
-    throw new Error(`update failed: ${updateError.message}`);
-  }
-
-  return { action: "updated", score: nextScore, accuracy: nextAccuracy };
+  return { action: "inserted", score, point, ammo_used, time_speed };
 }
 
 mqttClient.on("message", async (topic, payload) => {
   try {
     const event = parseEvent(payload);
-    const result = await upsertPlayerScore(
+    const result = await insertPlayerResult(
       event.player_name,
-      event.score_delta,
-      event.accuracy_delta
+      event.game_mode,
+      event.score,
+      event.point,
+      event.ammo_used,
+      event.time_speed
     );
 
     console.log(
       `[bridge] ${result.action} ${event.player_name} | ` +
-        `score_delta=${event.score_delta} accuracy_delta=${event.accuracy_delta} | topic=${topic}`
+        `mode=${event.game_mode} score=${event.score} point=${event.point} ` +
+        `ammo_used=${event.ammo_used} time_speed=${event.time_speed} | topic=${topic}`
     );
   } catch (err) {
     console.error("[bridge] message handling error:", err.message);

@@ -1,15 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f7fb;
-  --foreground: #0f172a;
-  --muted: #5b6b7c;
+  --background: #05050A;
+  --foreground: #F3f4f6;
+  --muted: #cbd5e1;
   --accent: #22d3ee;
   --accent-2: #f97316;
   --surface: rgba(255, 255, 255, 0.88);
-  --surface-strong: #ffffff;
-  --border: rgba(15, 23, 42, 0.12);
-  --shadow: rgba(15, 23, 42, 0.18);
+  --surface-strong: rgba(255, 255, 255, 0.12);
+  --border: rgba(255, 255, 255, 0.18);
+  --shadow: rgba(0, 0, 0, 0.45);
+  --ll-cyan: #4ff7ff;
+  --ll-blue: #4aa3ff;
+  --ll-violet: #8b5cf6;
+  --ll-pink: #d946ef;
 }
 
 @theme inline {
@@ -26,21 +30,18 @@
 html,
 body {
   min-height: 100%;
+  margin: 0;
 }
 
 body {
-  background:
-    radial-gradient(
-      700px circle at 12% 6%,
-      rgba(34, 211, 238, 0.18),
-      transparent 55%
-    ),
-    radial-gradient(
-      600px circle at 88% 18%,
-      rgba(249, 115, 22, 0.18),
-      transparent 55%
-    ),
-    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  background-color: var(--background);
+  background-image:
+    linear-gradient(rgba(5, 5, 10, 0.62), rgba(5, 5, 10, 0.62)),
+    url("/Background.gif");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-display), sans-serif;
 }
@@ -204,4 +205,38 @@ a {
     transform: translateY(220%);
     opacity: 0.85;
   }
+}
+.ll-title {
+  background: linear-gradient(
+    90deg,
+    var(--ll-cyan) 0%,
+    var(--ll-blue) 35%,
+    var(--ll-violet) 68%,
+    var(--ll-pink) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow:
+    0 0 10px rgba(79, 247, 255, 0.35),
+    0 0 18px rgba(139, 92, 246, 0.3),
+    0 0 26px rgba(217, 70, 239, 0.28);
+}
+
+.ll-subtitle {
+  background: linear-gradient(
+    90deg,
+    #9feeff 0%,
+    #9fc6ff 35%,
+    #c1a9ff 68%,
+    #e5adff 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow:
+    0 0 6px rgba(79, 247, 255, 0.18),
+    0 0 10px rgba(139, 92, 246, 0.14);
 }
