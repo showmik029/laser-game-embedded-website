@@ -11,7 +11,8 @@ export default async function Home() {
         display: "flex",
         flexDirection: "column",
         gap: "0px",
-        overflow: "hidden",
+        overflowX: "hidden",
+        overflowY: "auto",
         position: "relative",
       }}
     >
@@ -32,7 +33,7 @@ export default async function Home() {
           alignItems: "center",
           justifyContent: "center",
           textAlign: "center",
-          minHeight: "54vh",
+          minHeight: "40vh",
           flex: "0 0 auto",
         }}
       >
@@ -48,7 +49,7 @@ export default async function Home() {
           <h1
             className="ll-title"
             style={{
-              fontSize: "96px",
+              fontSize: "82px",
               margin: 0,
               lineHeight: 1,
               fontWeight: 400,
@@ -60,20 +61,21 @@ export default async function Home() {
         <p
           className="ll-subtitle"
           style={{
-            fontSize: "21px",
-            maxWidth: "780px",
+            fontSize: "18px",
+            width: "min(92vw, 820px)",
             margin: 0,
-            lineHeight: 1.5,
+            lineHeight: 1.4,
             fontWeight: 600,
           }}
         >
-          Welcome to our Embedded IoT project called LaserLabs!!!! We are group-7 and the members are Akib, Mikke, Jesse and Noel.
-          <br /> This is an arcade themed laser tag game where you have different game modes with live scoreboard to compete with your friends!
-          <br />Enjoy the game!!
+          Welcome to our Embedded IoT project called LaserLabs!!!! We are
+          group-7 and the members are Akib, Mikke, Jesse and Noel. This is an
+          arcade themed laser tag game where you have different game modes with
+          live scoreboard to compete with your friends! Enjoy the game!!
         </p>
         <div
           style={{
-            marginTop: "20px",
+            marginTop: "16px",
             display: "flex",
             gap: "14px",
             flexWrap: "wrap",
@@ -132,10 +134,8 @@ export default async function Home() {
       </section>
       <section
         style={{
-          position: "absolute",
-          left: "50%",
-          bottom: "5px",
-          transform: "translateX(-50%)",
+          marginTop: "14px",
+          alignSelf: "center",
           width: "min(92vw, 500px)",
         }}
       >
@@ -146,7 +146,7 @@ export default async function Home() {
           height={560}
           style={{
             width: "100%",
-            maxWidth: "900px",
+            maxWidth: "500px",
             maxHeight: "100%",
             height: "auto",
             objectFit: "contain",
