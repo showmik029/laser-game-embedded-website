@@ -8,6 +8,7 @@
 class WifiManager;
 class MqttManager;
 class GameMode;
+class Laser;
 
 struct MenuItem {
     const char* label;
@@ -15,15 +16,12 @@ struct MenuItem {
 
 class Menu {
 public:
-    Menu(const MenuItem* items, size_t count, WifiManager& wifi, MqttManager& mqtt);
+    Menu(const MenuItem* items, size_t count, WifiManager& wifi, MqttManager& mqtt, Laser& laser);
 
     void handle(InputEvent ev);
     void render(Ssd1306I2C& display);
 
-    // Returns true if the display should be redrawn.
     bool tick();
-
-    // Used by UI task to auto-refresh certain screens
     bool wants_periodic_refresh() const;
 
 private:
@@ -54,14 +52,12 @@ private:
     void ensure_wifi_buffers();
     void trim_right_spaces(char* buf);
 
-    // Wi-Fi editor helpers
     void wifi_editor_enter(EditField field);
     char wifi_editor_current_char() const;
     void wifi_editor_step(int delta);
     void wifi_editor_append();
     void wifi_editor_backspace();
 
-    // Player name editor helpers
     void ensure_player_name();
     void player_name_editor_enter();
     char player_name_editor_current_char() const;
@@ -84,28 +80,23 @@ private:
 
     Screen screen_ = Screen::Main;
 
-    // Start Game screen selection
-    size_t start_selected_ = 0; // 0=Snake, 1=Game1, 2=Back
+    // 0=Snake, 1=Classic, 2=Reverse, 3=Speedup, 4=Back
+    size_t start_selected_ = 0;
 
-    // Options screen selection
-    size_t opt_selected_ = 0; // 0=Wi-Fi, 1=Player name, 2=Back
+    size_t opt_selected_ = 0;
 
-    // Wi-Fi screen selection/editing
-    size_t wifi_selected_ = 0; // 0=SSID, 1=PW, 2=Connect, 3=Back
+    size_t wifi_selected_ = 0;
     EditField editing_ = EditField::None;
-    size_t picker_idx_ = 1; // index into charset for Wi-Fi editor
+    size_t picker_idx_ = 1;
 
-    // Local editable buffers (not saved)
     bool wifi_buf_inited_ = false;
     char ssid_[33]{};
     char pw_[65]{};
 
-    // Player name editing
     bool player_name_inited_ = false;
     size_t player_picker_idx_ = 1;
     char player_name_[33]{};
 
-    // Active game (owned elsewhere)
     GameMode* active_game_ = nullptr;
 
     WifiManager* wifi_;

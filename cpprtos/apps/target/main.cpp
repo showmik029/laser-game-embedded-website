@@ -9,37 +9,18 @@
 
 #include "wifi_manager.hpp"
 #include "mqtt_manager.hpp"
-
 #include "target/target_controller.hpp"
+
+#ifndef TARGET_BOARD_ID
+#define TARGET_BOARD_ID "pico-1"
+#endif
+
+#ifndef TARGET_MQTT_CLIENT_ID
+#define TARGET_MQTT_CLIENT_ID "laser-target-pico-1"
+#endif
 
 static constexpr const char* kStartTopic   = "laser-labs/gamemodes/start";
 static constexpr const char* kRepliesTopic = "laser-labs/gamemodes/replies";
-
-static bool kv_get(const char* payload, const char* key, char* out, size_t out_len) {
-    if (!payload || !key || !out || out_len == 0) return false;
-
-    const size_t klen = std::strlen(key);
-    const char* p = payload;
-
-    while ((p = std::strstr(p, key)) != nullptr) {
-        if (p != payload && p[-1] != ';') { p += klen; continue; } // not a key start
-        p += klen;
-        if (*p != '=') continue;
-        p++;
-
-        size_t n = 0;
-        while (*p && *p != ';' && n + 1 < out_len) out[n++] = *p++;
-        out[n] = '\0';
-        return n > 0;
-    }
-    return false;
-}
-
-static int kv_get_int(const char* payload, const char* key, int def = -1) {
-    char buf[16]{};
-    if (!kv_get(payload, key, buf, sizeof(buf))) return def;
-    return std::atoi(buf);
-}
 
 struct TargetTaskParams {
     WifiManager* wifi;
@@ -47,46 +28,107 @@ struct TargetTaskParams {
     TargetController* target;
 };
 
+static bool kv_get(const char* payload, const char* key, char* out, size_t out_sz) {
+    if (!payload || !key || !out || out_sz == 0) return false;
+
+    char needle[32]{};
+    std::snprintf(needle, sizeof(needle), "%s=", key);
+
+    const char* p = std::strstr(payload, needle);
+    if (!p) return false;
+    p += std::strlen(needle);
+
+    size_t i = 0;
+    while (p[i] && p[i] != ';' && (i + 1) < out_sz) {
+        out[i] = p[i];
+        ++i;
+    }
+    out[i] = '\0';
+    return i > 0;
+}
+
+static int kv_get_int(const char* payload, const char* key, int fallback) {
+    char tmp[16]{};
+    if (!kv_get(payload, key, tmp, sizeof(tmp))) return fallback;
+    return std::atoi(tmp);
+}
+
 static void target_task(void* arg) {
     auto* p = static_cast<TargetTaskParams*>(arg);
 
-    // Wait Wi-Fi then MQTT
     xEventGroupWaitBits(p->wifi->events(), WifiManager::WIFI_CONNECTED, pdFALSE, pdTRUE, portMAX_DELAY);
     xEventGroupWaitBits(p->mqtt->events(), MqttManager::MQTT_CONNECTED, pdFALSE, pdTRUE, portMAX_DELAY);
 
-    printf("TARGET: ready\n");
+    printf("TARGET[%s]: ready\n", p->target->board_id());
 
     for (;;) {
-        // Process MQTT messages
         MqttManager::RxMessage rx{};
         while (p->mqtt->try_receive(rx, 0)) {
-            if (std::strcmp(rx.topic, kStartTopic) == 0) {
-                char target_id[16]{};
-                if (kv_get(rx.payload, "target", target_id, sizeof(target_id))) {
-                    int round = kv_get_int(rx.payload, "round", -1);
-                    printf("TARGET: arm target=%s round=%d\n", target_id, round);
-                    p->target->arm(target_id, round);
+            if (std::strcmp(rx.topic, kStartTopic) != 0) {
+                continue;
+            }
+
+            char target_id[16]{};
+            if (!kv_get(rx.payload, "target", target_id, sizeof(target_id))) {
+                continue;
+            }
+
+            if (std::strcmp(target_id, p->target->board_id()) != 0) {
+                continue;
+            }
+
+            char cmd[24]{};
+            if (!kv_get(rx.payload, "cmd", cmd, sizeof(cmd))) {
+                continue;
+            }
+
+            const int round = kv_get_int(rx.payload, "round", -1);
+
+            if (std::strcmp(cmd, "arm_zone") == 0) {
+                char zone[16]{};
+                if (kv_get(rx.payload, "zone", zone, sizeof(zone))) {
+                    printf("TARGET[%s]: arm_zone zone=%s round=%d\n",
+                           p->target->board_id(), zone, round);
+                    p->target->arm_zone(zone, round);
+
                 }
+            } else if (std::strcmp(cmd, "arm_random") == 0) {
+                printf("TARGET[%s]: arm_random round=%d\n", p->target->board_id(), round);
+                p->target->arm_random_zone(round);
+
+            } else if (std::strcmp(cmd, "arm_any") == 0) {
+                char bonus_zone[16]{};
+                const bool has_bonus = kv_get(rx.payload, "bonus_zone", bonus_zone, sizeof(bonus_zone));
+                printf("TARGET[%s]: arm_any round=%d bonus=%s\n",
+                       p->target->board_id(),
+                       round,
+                       has_bonus ? bonus_zone : "-");
+                p->target->arm_any(round, has_bonus ? bonus_zone : nullptr);
+
+            } else if (std::strcmp(cmd, "disarm") == 0) {
+                printf("TARGET[%s]: disarm\n", p->target->board_id());
+                p->target->disarm();
+
+            } else if (std::strcmp(cmd, "celebrate") == 0) {
+                printf("TARGET[%s]: celebrate\n", p->target->board_id());
+                p->target->disarm();
+                p->target->flash_all(3, 90, 70);
             }
         }
 
-        // Detect hits
-        uint32_t now_ms = (uint32_t)to_ms_since_boot(get_absolute_time());
-        auto ev = p->target->tick(now_ms);
-        if (ev.hit && ev.target_id) {
-            char payload[128]{};
-            if (ev.round >= 0) {
-                std::snprintf(payload, sizeof(payload),
-                              "game=game1;target=%s;event=hit;round=%d",
-                              ev.target_id, ev.round);
-            } else {
-                std::snprintf(payload, sizeof(payload),
-                              "game=game1;target=%s;event=hit",
-                              ev.target_id);
-            }
+        const uint32_t now_ms = static_cast<uint32_t>(to_ms_since_boot(get_absolute_time()));
+        const auto ev = p->target->tick(now_ms);
+        if (ev.hit && ev.board_id && ev.zone_id) {
+            char payload[160]{};
+            std::snprintf(payload, sizeof(payload),
+                          "target=%s;zone=%s;event=hit;round=%d;bonus=%d",
+                          ev.board_id,
+                          ev.zone_id,
+                          ev.round,
+                          ev.bonus ? 1 : 0);
 
             p->mqtt->publish(kRepliesTopic, payload, 0, 0);
-            printf("TARGET: HIT -> %s\n", payload);
+            printf("TARGET[%s]: HIT -> %s\n", p->target->board_id(), payload);
         }
 
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -96,21 +138,26 @@ static void target_task(void* arg) {
 int main() {
     stdio_init_all();
     sleep_ms(50);
-    printf("Boot (target)\n");
+    printf("Boot (target %s)\n", TARGET_BOARD_ID);
+
+    srand(static_cast<unsigned>(to_ms_since_boot(get_absolute_time())));
 
     static WifiManager wifi;
     wifi.start(tskIDLE_PRIORITY + 1, 1024);
 
     static MqttManager mqtt(wifi);
-    mqtt.start("192.168.100.38", 1883, "laser-target-emu", tskIDLE_PRIORITY + 1, 4096);
+    mqtt.start("10.161.6.54", 1883, TARGET_MQTT_CLIENT_ID, tskIDLE_PRIORITY + 1, 4096);
 
     TargetController::Config cfg{};
-    cfg.channels[0] = { "pico-1", 27, 1, 14 };
-    cfg.channels[1] = { "pico-2", 26, 0, 15 };
-    cfg.hit_delta = 30;          // testing required for this
+    cfg.board_id = TARGET_BOARD_ID;
+    cfg.channels[0] = { "head",    28, 2, 15 };
+    cfg.channels[1] = { "thorax",  27, 1, 14 };
+    cfg.channels[2] = { "stomach", 26, 0, 13 };
+    cfg.num_channels = 3;
+    cfg.hit_delta = 45;
     cfg.arm_timeout_ms = 15000;
     cfg.cooldown_ms = 1000;
-    cfg.debug_print_ms = 0; // 0 = debug print off, otherwise print every x ms
+    cfg.debug_print_ms = 0;
 
     static TargetController target(cfg);
     target.init();
