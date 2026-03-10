@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <algorithm>
 
 #include "laser/laser.hpp"
 
@@ -48,6 +49,42 @@ static int round_to_int(float v) {
 
 static float clamp_min(float v, float minimum) {
     return (v < minimum) ? minimum : v;
+}
+
+static float clamp_range(float v, float lo, float hi) {
+    if (v < lo) return lo;
+    if (v > hi) return hi;
+    return v;
+}
+
+static float hit_accuracy(uint32_t ammo_used, int hits_done) {
+    const float shots = static_cast<float>(std::max<uint32_t>(ammo_used, 1));
+    return clamp_range(static_cast<float>(hits_done) / shots, 0.0f, 1.0f);
+}
+
+static int classic_point_total(int hits_done, float total_time_s) {
+    const int base_points = hits_done * 100;
+    const float speed_factor = clamp_range(20.0f / clamp_min(total_time_s, 0.1f), 0.5f, 2.5f);
+    const int speed_bonus = round_to_int((speed_factor - 0.5f) * 400.0f);
+    return base_points + speed_bonus;
+}
+
+static int reverse_point_total(int normal_hits, int bonus_hits) {
+    return (normal_hits * 125) + (bonus_hits * 250);
+}
+
+static int speedup_point_total(int hits_done) {
+    float limit_ms = 10000.0f;
+    int total = 0;
+
+    for (int i = 0; i < hits_done; ++i) {
+        const float difficulty = clamp_range(1.0f - (limit_ms / 10000.0f), 0.0f, 1.0f);
+        const int per_hit = 100 + round_to_int(difficulty * 250.0f);
+        total += per_hit;
+        limit_ms *= 0.9f;
+    }
+
+    return total;
 }
 
 void RemoteTargetMode::set_player_name(const char* name) {
@@ -293,38 +330,35 @@ void RemoteTargetMode::finish_success(TickType_t now) {
 
     const uint32_t ammo_used = laser_ ? laser_->shot_count() : 0;
     const float total_time_s = clamp_min(ticks_to_seconds(now - game_start_tick_), 0.01f);
+    const float accuracy = hit_accuracy(ammo_used, hits_done_);
 
     int point = 0;
     int score = 0;
     float time_speed = 0.0f;
 
     if (kind_ == RemoteGameKind::Classic) {
-        const float time_factor = kClassicBaseTimeS / clamp_min(total_time_s, 0.1f);
-        const float ammo_factor = static_cast<float>(kClassicBaseAmmo) /
-                                  clamp_min(static_cast<float>(ammo_used == 0 ? 1 : ammo_used), 1.0f);
-        const float weighted = 0.666f * time_factor + 0.333f * ammo_factor;
+        const float speed_factor = clamp_range(20.0f / clamp_min(total_time_s, 0.1f), 0.5f, 2.5f);
+        const int completion_bonus = 250;
+        const int accuracy_bonus = round_to_int(accuracy * 300.0f);
 
-        point = round_to_int(10.0f * weighted);
-        score = round_to_int(static_cast<float>(point) * ammo_factor);
-        time_speed = time_factor;
+        point = classic_point_total(hits_done_, total_time_s);
+        score = point + completion_bonus + accuracy_bonus;
+        time_speed = speed_factor;
     } else if (kind_ == RemoteGameKind::ReverseClassic) {
-        const int raw_points = normal_hits_ + (bonus_hits_ * 2);
-        const float pace = static_cast<float>(raw_points) / 10.0f;
-        const float ammo_factor = static_cast<float>(kReverseBaseAmmo) /
-                                  clamp_min(static_cast<float>(ammo_used == 0 ? 1 : ammo_used), 1.0f);
-        const float weighted = 0.666f * pace + 0.333f * ammo_factor;
+        const int pace_bonus = round_to_int(static_cast<float>(reverse_point_total(normal_hits_, bonus_hits_)) /
+                                            (static_cast<float>(kReverseDurationMs) / 1000.0f) * 4.0f);
+        const int accuracy_bonus = round_to_int(accuracy * 250.0f);
 
-        point = round_to_int(10.0f * weighted);
-        score = round_to_int(static_cast<float>(point) * ammo_factor);
-        time_speed = pace;
+        point = reverse_point_total(normal_hits_, bonus_hits_);
+        score = point + pace_bonus + accuracy_bonus;
+        time_speed = static_cast<float>(hits_done_) / (static_cast<float>(kReverseDurationMs) / 1000.0f);
     } else {
-        const int baseline_ammo = (hits_done_ > 0) ? (hits_done_ * 10) : 1;
-        const float ammo_factor = static_cast<float>(baseline_ammo) /
-                                  clamp_min(static_cast<float>(ammo_used == 0 ? 1 : ammo_used), 1.0f);
+        const int survival_bonus = hits_done_ * 30;
+        const int accuracy_bonus = round_to_int(accuracy * 300.0f);
 
-        point = hits_done_;
-        score = round_to_int(static_cast<float>(point) * (0.85f + 0.15f * ammo_factor));
-        time_speed = total_time_s;
+        point = speedup_point_total(hits_done_);
+        score = point + survival_bonus + accuracy_bonus;
+        time_speed = kSpeedupStartMs / clamp_min(current_speedup_limit_ms_, 1.0f);
     }
 
     if (point < 0) point = 0;

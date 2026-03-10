@@ -445,10 +445,10 @@ void Menu::render_start_game(Ssd1306I2C& display) {
     display.draw_text(10, 24, "Classic");
 
     if (start_selected_ == 2) display.draw_text(0, 32, ">");
-    display.draw_text(10, 32, "Reverse");
+    display.draw_text(10, 32, "Time Trial");
 
     if (start_selected_ == 3) display.draw_text(0, 40, ">");
-    display.draw_text(10, 40, "Speedup");
+    display.draw_text(10, 40, "Photon Panic");
 
     if (start_selected_ == 4) display.draw_text(0, 48, ">");
     display.draw_text(10, 48, "Back");

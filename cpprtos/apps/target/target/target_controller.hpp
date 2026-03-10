@@ -26,9 +26,9 @@ public:
         int baseline_samples = 25;
         int sample_delay_ms  = 5;
 
-        uint16_t hit_delta = 30;
+        uint16_t hit_delta = 32;
         uint32_t arm_timeout_ms = 15000;
-        uint32_t cooldown_ms    = 600;
+        uint32_t cooldown_ms    = 400;
 
         uint32_t debug_print_ms = 0;
     };

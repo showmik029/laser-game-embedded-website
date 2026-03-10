@@ -89,13 +89,13 @@ private:
     char player_name_[33]{"default"};
 
     static constexpr int kClassicRounds = 10;
-    static constexpr int kClassicBaseAmmo = 100;
-    static constexpr float kClassicBaseTimeS = 25.0f;
+    static constexpr int kClassicBaseAmmo = 133;
+    static constexpr float kClassicBaseTimeS = 20.0f;
 
-    static constexpr uint32_t kReverseDurationMs = 10000;
-    static constexpr int kReverseBaseAmmo = 200;
+    static constexpr uint32_t kReverseDurationMs = 20000;
+    static constexpr int kReverseBaseAmmo = 133;
 
-    static constexpr float kSpeedupStartMs = 5000.0f;
+    static constexpr float kSpeedupStartMs = 10000.0f;
     static constexpr float kSpeedupDecay = 0.9f;
 
     int round_{0};
