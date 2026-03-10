@@ -140,7 +140,7 @@ export default async function Home() {
         }}
       >
         <Image
-          src="/image.jpg"
+          src="/image.jpeg"
           alt="Laser game action"
           width={1000}
           height={560}
