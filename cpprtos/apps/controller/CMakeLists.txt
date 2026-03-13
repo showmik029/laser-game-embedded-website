@@ -12,10 +12,14 @@ add_executable(laser_controller
         ui/menu.cpp
         ui/menu.hpp
 
-        gamemodes/snake/snake_mode.cpp
-        gamemodes/snake/snake_mode.hpp
-        gamemodes/mqtt_target/remote_target_mode.cpp
-        gamemodes/mqtt_target/remote_target_mode.hpp
+        gamemodes/mqtt_target/remote_target_base.cpp
+        gamemodes/mqtt_target/remote_target_base.hpp
+        gamemodes/mqtt_target/classic/classic_mode.cpp
+        gamemodes/mqtt_target/classic/classic_mode.hpp
+        gamemodes/mqtt_target/time_trial/time_trial_mode.cpp
+        gamemodes/mqtt_target/time_trial/time_trial_mode.hpp
+        gamemodes/mqtt_target/photon_panic/photon_panic_mode.cpp
+        gamemodes/mqtt_target/photon_panic/photon_panic_mode.hpp
 
         laser/laser.cpp
         laser/laser.hpp

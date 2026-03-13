@@ -12,14 +12,16 @@
 
 #include "gamemodes/game_mode.hpp"
 #include "gamemodes/snake/snake_mode.hpp"
-#include "gamemodes/mqtt_target/remote_target_mode.hpp"
+#include "gamemodes/mqtt_target/classic/classic_mode.hpp"
+#include "gamemodes/mqtt_target/time_trial/time_trial_mode.hpp"
+#include "gamemodes/mqtt_target/photon_panic/photon_panic_mode.hpp"
 
 static const char* kCharset = " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.";
 
-static SnakeMode g_snake;
-static RemoteTargetMode g_classic(RemoteGameKind::Classic);
-static RemoteTargetMode g_reverse(RemoteGameKind::ReverseClassic);
-static RemoteTargetMode g_speedup(RemoteGameKind::Speedup);
+static SnakeMode      g_snake;
+static ClassicMode    g_classic;
+static TimeTrialMode  g_time_trial;
+static PhotonPanicMode g_photon_panic;
 
 static int charset_index(char c) {
     for (int i = 0; kCharset[i]; ++i) {
@@ -39,13 +41,13 @@ static void draw_trunc(Ssd1306I2C& display, int x, int y, const char* s, int max
 Menu::Menu(const MenuItem* items, size_t count, WifiManager& wifi, MqttManager& mqtt, Laser& laser)
     : items_(items), count_(count), wifi_(&wifi), mqtt_(&mqtt) {
     g_classic.bind(wifi_, mqtt_, &laser);
-    g_reverse.bind(wifi_, mqtt_, &laser);
-    g_speedup.bind(wifi_, mqtt_, &laser);
+    g_time_trial.bind(wifi_, mqtt_, &laser);
+    g_photon_panic.bind(wifi_, mqtt_, &laser);
 
     ensure_player_name();
     g_classic.set_player_name(player_name_);
-    g_reverse.set_player_name(player_name_);
-    g_speedup.set_player_name(player_name_);
+    g_time_trial.set_player_name(player_name_);
+    g_photon_panic.set_player_name(player_name_);
 }
 
 bool Menu::wants_periodic_refresh() const {
@@ -129,17 +131,17 @@ void Menu::handle_start_game(InputEvent ev) {
     } else if (ev == InputEvent::Select) {
         ensure_player_name();
         g_classic.set_player_name(player_name_);
-        g_reverse.set_player_name(player_name_);
-        g_speedup.set_player_name(player_name_);
+        g_time_trial.set_player_name(player_name_);
+        g_photon_panic.set_player_name(player_name_);
 
         if (start_selected_ == 0) {
             active_game_ = &g_snake;
         } else if (start_selected_ == 1) {
             active_game_ = &g_classic;
         } else if (start_selected_ == 2) {
-            active_game_ = &g_reverse;
+            active_game_ = &g_time_trial;
         } else if (start_selected_ == 3) {
-            active_game_ = &g_speedup;
+            active_game_ = &g_photon_panic;
         } else {
             screen_ = Screen::Main;
             return;
@@ -259,8 +261,8 @@ void Menu::handle_player_name_edit(InputEvent ev) {
         }
 
         g_classic.set_player_name(player_name_);
-        g_reverse.set_player_name(player_name_);
-        g_speedup.set_player_name(player_name_);
+        g_time_trial.set_player_name(player_name_);
+        g_photon_panic.set_player_name(player_name_);
 
         screen_ = Screen::PlayerName;
         return;
