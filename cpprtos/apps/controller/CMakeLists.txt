@@ -14,8 +14,8 @@ add_executable(laser_controller
 
         gamemodes/snake/snake_mode.cpp
         gamemodes/snake/snake_mode.hpp
-        gamemodes/mqtt_game1/mqtt_game1_mode.cpp
-        gamemodes/mqtt_game1/mqtt_game1_mode.hpp
+        gamemodes/mqtt_target/remote_target_mode.cpp
+        gamemodes/mqtt_target/remote_target_mode.hpp
 
         laser/laser.cpp
         laser/laser.hpp

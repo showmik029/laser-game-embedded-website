@@ -14,7 +14,6 @@ struct LaserConfig {
     DebouncedButton::Pull button_pull = DebouncedButton::Pull::Up;
     bool button_pressed_when_low = true;
 
-    // Timings
     uint32_t poll_ms = 5;
     uint32_t debounce_ms = 30;
 
@@ -27,16 +26,18 @@ class Laser {
 public:
     explicit Laser(const LaserConfig& cfg = {});
 
-    void init(); // init laser GPIO + button GPIO
+    void init();
     bool start(UBaseType_t priority = tskIDLE_PRIORITY + 1,
                uint16_t stack_words = configMINIMAL_STACK_SIZE + 128);
 
     void setEnabled(bool on);
 
-    // Optional runtime tuning
     void setHoldMs(uint32_t ms);
     void setAutoPeriodMs(uint32_t ms);
     void setPulseMs(uint32_t ms);
+
+    uint32_t shot_count() const { return shot_count_; }
+    void reset_shot_count() { shot_count_ = 0; }
 
 private:
     static void taskTrampoline(void* arg);
@@ -53,6 +54,8 @@ private:
     DebouncedButton button_;
 
     volatile bool enabled_{true};
+    volatile uint32_t shot_count_{0};
+
     TaskHandle_t task_{nullptr};
 
     TickType_t poll_ticks_{pdMS_TO_TICKS(5)};
@@ -60,7 +63,6 @@ private:
     TickType_t auto_period_ticks_{pdMS_TO_TICKS(100)};
     TickType_t pulse_ticks_{pdMS_TO_TICKS(20)};
 
-    // State
     TickType_t press_start_{0};
     TickType_t next_auto_shot_{0};
 

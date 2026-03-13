@@ -9,18 +9,18 @@
 
 #include "wifi_manager.hpp"
 #include "mqtt_manager.hpp"
-
 #include "target/target_controller.hpp"
 
-static constexpr const char* kStartTopic    = "laser-labs/gamemodes/start";
-static constexpr const char* kFinishedTopic = "laser-labs/gamemodes/finished";
+#ifndef TARGET_BOARD_ID
+#define TARGET_BOARD_ID "pico-1"
+#endif
 
-static constexpr int kTotalTargets = 10;
-static constexpr const char* kTargetIds[] = { "pico-1", "pico-2", "pico-3" };
-static constexpr int kNumTargetIds = 3;
-static constexpr uint32_t kReverseDurationMs = 10000;
-static constexpr float kSpeedupStartMs = 5000.0f;
-static constexpr float kSpeedupDecay   = 0.9f;
+#ifndef TARGET_MQTT_CLIENT_ID
+#define TARGET_MQTT_CLIENT_ID "laser-target-pico-1"
+#endif
+
+static constexpr const char* kStartTopic   = "laser-labs/gamemodes/start";
+static constexpr const char* kRepliesTopic = "laser-labs/gamemodes/replies";
 
 struct TargetTaskParams {
     WifiManager* wifi;
@@ -28,153 +28,29 @@ struct TargetTaskParams {
     TargetController* target;
 };
 
-static int pick_next(int prev) {
-    int n = (rand() % kNumTargetIds);
-    if (n == prev) n = (n + 1) % kNumTargetIds;
-    return n;
+static bool kv_get(const char* payload, const char* key, char* out, size_t out_sz) {
+    if (!payload || !key || !out || out_sz == 0) return false;
+
+    char needle[32]{};
+    std::snprintf(needle, sizeof(needle), "%s=", key);
+
+    const char* p = std::strstr(payload, needle);
+    if (!p) return false;
+    p += std::strlen(needle);
+
+    size_t i = 0;
+    while (p[i] && p[i] != ';' && (i + 1) < out_sz) {
+        out[i] = p[i];
+        ++i;
+    }
+    out[i] = '\0';
+    return i > 0;
 }
 
-//CLASSIC GAMEMODE
-
-static void run_classic(TargetController* target, MqttManager* mqtt) {
-    printf("CLASSIC: game starting!\n");
-
-    int hits_done = 0;
-    int active_idx = pick_next(-1);
-    uint32_t start_ms = (uint32_t)to_ms_since_boot(get_absolute_time());
-
-    target->arm(kTargetIds[active_idx], 1);
-
-    while (hits_done < kTotalTargets) {
-        uint32_t now_ms = (uint32_t)to_ms_since_boot(get_absolute_time());
-        auto ev = target->tick(now_ms);
-
-        if (ev.hit && ev.target_id) {
-            hits_done++;
-            printf("CLASSIC: hit %d/%d\n", hits_done, kTotalTargets);
-
-            if (hits_done < kTotalTargets) {
-                int prev = active_idx;
-                active_idx = pick_next(prev);
-                target->arm(kTargetIds[active_idx], hits_done + 1);
-            } else {
-                target->disarm();
-            }
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
-    uint32_t end_ms = (uint32_t)to_ms_since_boot(get_absolute_time());
-    float total_s = (float)(end_ms - start_ms) / 1000.0f;
-
-    char payload[64]{};
-    std::snprintf(payload, sizeof(payload),
-                  "game=classic;result=finished;time=%.2fs;hits=%d",
-                  total_s, kTotalTargets);
-
-    mqtt->publish(kFinishedTopic, payload, 0, 0);
-    printf("CLASSIC: done! time=%.2fs\n", total_s);
-}
-
-
-//REVERSE GAMEMODE
-
-
-static void run_reverse(TargetController* target, MqttManager* mqtt) {
-    printf("REVERSE: game starting! 10 seconds!\n");
-
-    int hits_done = 0;
-    target->arm_all();
-
-    uint32_t start_ms = (uint32_t)to_ms_since_boot(get_absolute_time());
-    uint32_t flash_until[3] = {0, 0, 0};
-    const uint32_t kFlashMs = 100;
-    const uint led_gpios[3] = {15, 14, 13};
-
-    while (true) {
-        uint32_t now_ms = (uint32_t)to_ms_since_boot(get_absolute_time());
-
-        if (now_ms - start_ms >= kReverseDurationMs) {
-            target->disarm();
-            break;
-        }
-
-        auto ev = target->tick_all(now_ms);
-        if (ev.hit && ev.target_id && ev.round >= 0) {
-            hits_done++;
-            flash_until[ev.round] = now_ms + kFlashMs;
-            printf("REVERSE: hit %d target=%s\n", hits_done, ev.target_id);
-        }
-
-        for (int i = 0; i < 3; i++) {
-            bool flashing = (int32_t)(flash_until[i] - now_ms) > 0;
-            gpio_put(led_gpios[i], flashing ? 1 : 0);
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
-    char payload[64]{};
-    std::snprintf(payload, sizeof(payload),
-                  "game=reverse;result=finished;hits=%d;time=10.00s",
-                  hits_done);
-
-    mqtt->publish(kFinishedTopic, payload, 0, 0);
-    printf("REVERSE: done! hits=%d\n", hits_done);
-}
-
-//SPEEDUP GAMEMODE
-
-
-static void run_speedup(TargetController* target, MqttManager* mqtt) {
-    printf("SPEEDUP: game starting!\n");
-
-    int hits_done = 0;
-    float time_limit_ms = kSpeedupStartMs;
-    int active_idx = pick_next(-1);
-
-    target->arm(kTargetIds[active_idx], 1);
-
-    uint32_t target_start_ms = (uint32_t)to_ms_since_boot(get_absolute_time());
-    uint32_t game_start_ms = target_start_ms;
-
-    while (true) {
-        uint32_t now_ms = (uint32_t)to_ms_since_boot(get_absolute_time());
-
-        // Check if time ran out for current target
-        if ((float)(now_ms - target_start_ms) >= time_limit_ms) {
-            printf("SPEEDUP: time out! survived %d targets\n", hits_done);
-            target->disarm();
-            break;
-        }
-
-        auto ev = target->tick(now_ms);
-
-        if (ev.hit && ev.target_id) {
-            hits_done++;
-            time_limit_ms *= kSpeedupDecay;
-            printf("SPEEDUP: hit %d next_time=%.0fms\n", hits_done, time_limit_ms);
-
-            int prev = active_idx;
-            active_idx = pick_next(prev);
-            target->arm(kTargetIds[active_idx], hits_done + 1);
-            target_start_ms = (uint32_t)to_ms_since_boot(get_absolute_time());
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
-    uint32_t end_ms = (uint32_t)to_ms_since_boot(get_absolute_time());
-    float total_s = (float)(end_ms - game_start_ms) / 1000.0f;
-
-    char payload[64]{};
-    std::snprintf(payload, sizeof(payload),
-                  "game=speedup;result=finished;hits=%d;time=%.2fs",
-                  hits_done, total_s);
-
-    mqtt->publish(kFinishedTopic, payload, 0, 0);
-    printf("SPEEDUP: done! hits=%d time=%.2fs\n", hits_done, total_s);
+static int kv_get_int(const char* payload, const char* key, int fallback) {
+    char tmp[16]{};
+    if (!kv_get(payload, key, tmp, sizeof(tmp))) return fallback;
+    return std::atoi(tmp);
 }
 
 static void target_task(void* arg) {
@@ -183,52 +59,102 @@ static void target_task(void* arg) {
     xEventGroupWaitBits(p->wifi->events(), WifiManager::WIFI_CONNECTED, pdFALSE, pdTRUE, portMAX_DELAY);
     xEventGroupWaitBits(p->mqtt->events(), MqttManager::MQTT_CONNECTED, pdFALSE, pdTRUE, portMAX_DELAY);
 
-    printf("TARGET: ready, waiting for 'start', 'reverse' or 'speedup'\n");
+    printf("TARGET[%s]: ready\n", p->target->board_id());
 
     for (;;) {
-        bool start_classic = false;
-        bool start_reverse = false;
-        bool start_speedup = false;
-
-        while (!start_classic && !start_reverse && !start_speedup) {
-            MqttManager::RxMessage rx{};
-            while (p->mqtt->try_receive(rx, 0)) {
-                if (std::strcmp(rx.topic, kStartTopic) == 0) {
-                    if (std::strcmp(rx.payload, "start") == 0)   start_classic = true;
-                    if (std::strcmp(rx.payload, "reverse") == 0) start_reverse = true;
-                    if (std::strcmp(rx.payload, "speedup") == 0) start_speedup = true;
-                }
+        MqttManager::RxMessage rx{};
+        while (p->mqtt->try_receive(rx, 0)) {
+            if (std::strcmp(rx.topic, kStartTopic) != 0) {
+                continue;
             }
-            vTaskDelay(pdMS_TO_TICKS(50));
+
+            char target_id[16]{};
+            if (!kv_get(rx.payload, "target", target_id, sizeof(target_id))) {
+                continue;
+            }
+
+            if (std::strcmp(target_id, p->target->board_id()) != 0) {
+                continue;
+            }
+
+            char cmd[24]{};
+            if (!kv_get(rx.payload, "cmd", cmd, sizeof(cmd))) {
+                continue;
+            }
+
+            const int round = kv_get_int(rx.payload, "round", -1);
+
+            if (std::strcmp(cmd, "arm_zone") == 0) {
+                char zone[16]{};
+                if (kv_get(rx.payload, "zone", zone, sizeof(zone))) {
+                    printf("TARGET[%s]: arm_zone zone=%s round=%d\n",
+                           p->target->board_id(), zone, round);
+                    p->target->arm_zone(zone, round);
+
+                }
+            } else if (std::strcmp(cmd, "arm_random") == 0) {
+                printf("TARGET[%s]: arm_random round=%d\n", p->target->board_id(), round);
+                p->target->arm_random_zone(round);
+
+            } else if (std::strcmp(cmd, "arm_any") == 0) {
+                char bonus_zone[16]{};
+                const bool has_bonus = kv_get(rx.payload, "bonus_zone", bonus_zone, sizeof(bonus_zone));
+                printf("TARGET[%s]: arm_any round=%d bonus=%s\n",
+                       p->target->board_id(),
+                       round,
+                       has_bonus ? bonus_zone : "-");
+                p->target->arm_any(round, has_bonus ? bonus_zone : nullptr);
+
+            } else if (std::strcmp(cmd, "disarm") == 0) {
+                printf("TARGET[%s]: disarm\n", p->target->board_id());
+                p->target->disarm();
+
+            } else if (std::strcmp(cmd, "celebrate") == 0) {
+                printf("TARGET[%s]: celebrate\n", p->target->board_id());
+                p->target->disarm();
+                p->target->flash_all(3, 90, 70);
+            }
         }
 
-        if (start_classic) run_classic(p->target, p->mqtt);
-        if (start_reverse) run_reverse(p->target, p->mqtt);
-        if (start_speedup) run_speedup(p->target, p->mqtt);
+        const uint32_t now_ms = static_cast<uint32_t>(to_ms_since_boot(get_absolute_time()));
+        const auto ev = p->target->tick(now_ms);
+        if (ev.hit && ev.board_id && ev.zone_id) {
+            char payload[160]{};
+            std::snprintf(payload, sizeof(payload),
+                          "target=%s;zone=%s;event=hit;round=%d;bonus=%d",
+                          ev.board_id,
+                          ev.zone_id,
+                          ev.round,
+                          ev.bonus ? 1 : 0);
 
-        printf("TARGET: waiting for next game\n");
+            p->mqtt->publish(kRepliesTopic, payload, 0, 0);
+            printf("TARGET[%s]: HIT -> %s\n", p->target->board_id(), payload);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
 int main() {
     stdio_init_all();
     sleep_ms(50);
-    printf("Boot (target)\n");
+    printf("Boot (target %s)\n", TARGET_BOARD_ID);
 
-    srand(to_ms_since_boot(get_absolute_time()));
+    srand(static_cast<unsigned>(to_ms_since_boot(get_absolute_time())));
 
     static WifiManager wifi;
     wifi.start(tskIDLE_PRIORITY + 1, 1024);
 
     static MqttManager mqtt(wifi);
-    mqtt.start("10.161.4.35", 1883, "laser-target-1", tskIDLE_PRIORITY + 1, 4096);
+    mqtt.start("10.161.6.54", 1883, TARGET_MQTT_CLIENT_ID, tskIDLE_PRIORITY + 1, 4096);
 
     TargetController::Config cfg{};
-    cfg.channels[0] = { "pico-1", 28, 2, 15 };
-    cfg.channels[1] = { "pico-2", 27, 1, 14 };
-    cfg.channels[2] = { "pico-3", 26, 0, 13 };
+    cfg.board_id = TARGET_BOARD_ID;
+    cfg.channels[0] = { "head",    28, 2, 15 };
+    cfg.channels[1] = { "thorax",  27, 1, 14 };
+    cfg.channels[2] = { "stomach", 26, 0, 13 };
     cfg.num_channels = 3;
-    cfg.hit_delta = 30;
+    cfg.hit_delta = 45;
     cfg.arm_timeout_ms = 15000;
     cfg.cooldown_ms = 1000;
     cfg.debug_print_ms = 0;

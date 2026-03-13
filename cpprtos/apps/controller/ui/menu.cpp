@@ -8,14 +8,18 @@
 
 #include "wifi_manager.hpp"
 #include "mqtt_manager.hpp"
+#include "laser/laser.hpp"
 
 #include "gamemodes/game_mode.hpp"
 #include "gamemodes/snake/snake_mode.hpp"
-#include "gamemodes/mqtt_game1/mqtt_game1_mode.hpp"
+#include "gamemodes/mqtt_target/remote_target_mode.hpp"
 
 static const char* kCharset = " abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.";
+
 static SnakeMode g_snake;
-static MqttGame1Mode g_game1;
+static RemoteTargetMode g_classic(RemoteGameKind::Classic);
+static RemoteTargetMode g_reverse(RemoteGameKind::ReverseClassic);
+static RemoteTargetMode g_speedup(RemoteGameKind::Speedup);
 
 static int charset_index(char c) {
     for (int i = 0; kCharset[i]; ++i) {
@@ -32,11 +36,16 @@ static void draw_trunc(Ssd1306I2C& display, int x, int y, const char* s, int max
     display.draw_text(x, y, tmp);
 }
 
-Menu::Menu(const MenuItem* items, size_t count, WifiManager& wifi, MqttManager& mqtt)
+Menu::Menu(const MenuItem* items, size_t count, WifiManager& wifi, MqttManager& mqtt, Laser& laser)
     : items_(items), count_(count), wifi_(&wifi), mqtt_(&mqtt) {
-    g_game1.bind(wifi_, mqtt_);
+    g_classic.bind(wifi_, mqtt_, &laser);
+    g_reverse.bind(wifi_, mqtt_, &laser);
+    g_speedup.bind(wifi_, mqtt_, &laser);
+
     ensure_player_name();
-    g_game1.set_player_name(player_name_);
+    g_classic.set_player_name(player_name_);
+    g_reverse.set_player_name(player_name_);
+    g_speedup.set_player_name(player_name_);
 }
 
 bool Menu::wants_periodic_refresh() const {
@@ -109,7 +118,7 @@ void Menu::handle_main(InputEvent ev) {
 }
 
 void Menu::handle_start_game(InputEvent ev) {
-    constexpr size_t kCount = 3;
+    constexpr size_t kCount = 5;
 
     if (ev == InputEvent::Up) {
         start_selected_ = (start_selected_ == 0) ? (kCount - 1) : (start_selected_ - 1);
@@ -118,19 +127,26 @@ void Menu::handle_start_game(InputEvent ev) {
     } else if (ev == InputEvent::Left || ev == InputEvent::Back) {
         screen_ = Screen::Main;
     } else if (ev == InputEvent::Select) {
+        ensure_player_name();
+        g_classic.set_player_name(player_name_);
+        g_reverse.set_player_name(player_name_);
+        g_speedup.set_player_name(player_name_);
+
         if (start_selected_ == 0) {
             active_game_ = &g_snake;
-            active_game_->on_enter();
-            screen_ = Screen::Game;
         } else if (start_selected_ == 1) {
-            ensure_player_name();
-            g_game1.set_player_name(player_name_);
-            active_game_ = &g_game1;
-            active_game_->on_enter();
-            screen_ = Screen::Game;
+            active_game_ = &g_classic;
+        } else if (start_selected_ == 2) {
+            active_game_ = &g_reverse;
+        } else if (start_selected_ == 3) {
+            active_game_ = &g_speedup;
         } else {
             screen_ = Screen::Main;
+            return;
         }
+
+        active_game_->on_enter();
+        screen_ = Screen::Game;
     }
 }
 
@@ -151,7 +167,7 @@ void Menu::handle_game(InputEvent ev) {
 }
 
 void Menu::handle_options(InputEvent ev) {
-    constexpr size_t kCount = 3; // Wi-Fi, Player name, Back
+    constexpr size_t kCount = 3;
 
     if (ev == InputEvent::Up) {
         opt_selected_ = (opt_selected_ == 0) ? (kCount - 1) : (opt_selected_ - 1);
@@ -241,7 +257,11 @@ void Menu::handle_player_name_edit(InputEvent ev) {
             std::strncpy(player_name_, "default", sizeof(player_name_) - 1);
             player_name_[sizeof(player_name_) - 1] = '\0';
         }
-        g_game1.set_player_name(player_name_);
+
+        g_classic.set_player_name(player_name_);
+        g_reverse.set_player_name(player_name_);
+        g_speedup.set_player_name(player_name_);
+
         screen_ = Screen::PlayerName;
         return;
     }
@@ -422,12 +442,17 @@ void Menu::render_start_game(Ssd1306I2C& display) {
     display.draw_text(10, 16, "Snake");
 
     if (start_selected_ == 1) display.draw_text(0, 24, ">");
-    display.draw_text(10, 24, "Game1");
+    display.draw_text(10, 24, "Classic");
 
     if (start_selected_ == 2) display.draw_text(0, 32, ">");
-    display.draw_text(10, 32, "Back");
+    display.draw_text(10, 32, "Time Trial");
 
-    display.draw_text(0, 56, "Press to select");
+    if (start_selected_ == 3) display.draw_text(0, 40, ">");
+    display.draw_text(10, 40, "Photon Panic");
+
+    if (start_selected_ == 4) display.draw_text(0, 48, ">");
+    display.draw_text(10, 48, "Back");
+
     display.show();
 }
 
@@ -521,11 +546,8 @@ void Menu::render_wifi_edit(Ssd1306I2C& display) {
     display.draw_text(0, 36, "Pick:");
     char pickbuf[16]{};
     const char c = wifi_editor_current_char();
-    if (c == ' ') {
-        std::snprintf(pickbuf, sizeof(pickbuf), "<space>");
-    } else {
-        std::snprintf(pickbuf, sizeof(pickbuf), "[%c]", c);
-    }
+    if (c == ' ') std::snprintf(pickbuf, sizeof(pickbuf), "<space>");
+    else std::snprintf(pickbuf, sizeof(pickbuf), "[%c]", c);
     display.draw_text(40, 36, pickbuf);
 
     display.draw_text(0, 48, "U/D pick  P add");
@@ -580,11 +602,8 @@ void Menu::render_player_name_edit(Ssd1306I2C& display) {
     display.draw_text(0, 36, "Pick:");
     char pickbuf[16]{};
     const char c = player_name_editor_current_char();
-    if (c == ' ') {
-        std::snprintf(pickbuf, sizeof(pickbuf), "<space>");
-    } else {
-        std::snprintf(pickbuf, sizeof(pickbuf), "[%c]", c);
-    }
+    if (c == ' ') std::snprintf(pickbuf, sizeof(pickbuf), "<space>");
+    else std::snprintf(pickbuf, sizeof(pickbuf), "[%c]", c);
     display.draw_text(40, 36, pickbuf);
 
     display.draw_text(0, 48, "U/D pick  P add");

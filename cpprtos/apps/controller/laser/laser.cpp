@@ -10,12 +10,10 @@ Laser::Laser(const LaserConfig& cfg)
 }
 
 void Laser::init() {
-    // Laser output
     gpio_init(cfg_.laser_pin);
     gpio_set_dir(cfg_.laser_pin, GPIO_OUT);
     gpio_put(cfg_.laser_pin, 0);
 
-    // Button input
     button_.init();
 }
 
@@ -65,31 +63,23 @@ void Laser::forceOff() {
 void Laser::fireShot(TickType_t now) {
     if (!enabled_) return;
 
+    ++shot_count_;
     gpio_put(cfg_.laser_pin, 1);
     laser_on_ = true;
-
-    const TickType_t until = now + pulse_ticks_;
-    if (!laser_on_ || timeReached(until, laser_on_until_)) {
-        laser_on_until_ = until;
-    } else {
-        if (timeReached(until, laser_on_until_)) laser_on_until_ = until;
-    }
-    if (timeReached(until, laser_on_until_)) laser_on_until_ = until;
+    laser_on_until_ = now + pulse_ticks_;
 }
 
 void Laser::taskLoop() {
     TickType_t last = xTaskGetTickCount();
 
-    // Initialize state from current button reading
     press_start_ = last;
-    next_auto_shot_ = last + hold_ticks_;
+    next_auto_shot_ = last;
     forceOff();
 
     for (;;) {
         vTaskDelayUntil(&last, poll_ticks_);
         const TickType_t now = xTaskGetTickCount();
 
-        // turn laser OFF when pulse ends
         if (laser_on_ && timeReached(now, laser_on_until_)) {
             laser_on_ = false;
             gpio_put(cfg_.laser_pin, 0);
@@ -98,29 +88,22 @@ void Laser::taskLoop() {
         button_.update(now);
 
         if (!enabled_) {
-            // ignore input while disabled
             continue;
         }
 
         if (button_.rose()) {
-            // tap -> immediate single shot
             press_start_ = now;
-            next_auto_shot_ = now + hold_ticks_;
-            fireShot(now);
+            next_auto_shot_ = now;
         }
 
         if (button_.pressed()) {
-            // after hold threshold -> auto-fire
-            if (timeReached(now, press_start_ + hold_ticks_)) {
-                if (timeReached(now, next_auto_shot_)) {
-                    fireShot(now);
-                    next_auto_shot_ = now + auto_period_ticks_;
-                }
+            if (timeReached(now, next_auto_shot_)) {
+                fireShot(now);
+                next_auto_shot_ = now + auto_period_ticks_;
             }
         }
 
         if (button_.fell()) {
-            // released -> stop firing and force OFF
             forceOff();
         }
     }

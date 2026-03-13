@@ -49,17 +49,23 @@ static void ui_task(void* arg)
         { "About"     },
     };
 
-    Menu menu(kMainItems, sizeof(kMainItems) / sizeof(kMainItems[0]), *params->wifi, *params->mqtt);
+    Menu menu(kMainItems,
+          sizeof(kMainItems) / sizeof(kMainItems[0]),
+          *params->wifi,
+          *params->mqtt,
+          g_laser);
+
     menu.render(display);
 
     InputEvent ev{};
     for (;;) {
-        // Wait for input, but wake periodically so games / Wi-Fi screen can tick.
-        if (xQueueReceive(g_input_queue, &ev, pdMS_TO_TICKS(200)) == pdTRUE) {
+        const TickType_t wait_ticks =
+            menu.wants_periodic_refresh() ? pdMS_TO_TICKS(25) : portMAX_DELAY;
+
+        if (xQueueReceive(g_input_queue, &ev, wait_ticks) == pdTRUE) {
             menu.handle(ev);
             menu.render(display);
         } else {
-            // Timeout: allow menus/games to update without input.
             if (menu.tick()) {
                 menu.render(display);
             }
@@ -98,7 +104,7 @@ int main()
     wifi.start(tskIDLE_PRIORITY + 1, 1024);
 
     static MqttManager mqtt(wifi);
-    mqtt.start("192.168.100.38", 1883, "pico-laser-ui", tskIDLE_PRIORITY + 1, 4096);
+    mqtt.start("10.161.6.54", 1883, "pico-laser-ui", tskIDLE_PRIORITY + 1, 4096);
 
     g_laser.init();
     g_laser.start(tskIDLE_PRIORITY + 1, 512);
